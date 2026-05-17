@@ -1,7 +1,15 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const Header = ({ messageCount, checkCount, bellCount }) => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
   return (
     <header
       className="relative flex h-[128px] items-end justify-between overflow-visible border-x border-t border-[#cfcfcf] bg-white px-6 pt-5 pb-2 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset]"
@@ -14,18 +22,18 @@ const Header = ({ messageCount, checkCount, bellCount }) => {
         </div>
 
         <div className="pointer-events-none absolute top-0 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center text-center">
-          <div className="-mt-6 mb-1 flex h-[78px] w-[78px] items-center justify-center rounded-full border border-[#cfd6d8] bg-white shadow-sm">
-            <span className="text-[27px] font-bold text-[#1a9bb4]">HUFS</span>
+          <div className="-mt-10 -mb-9 flex h-[140px] w-[140px] items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white">
+            <img src="/hufs_logo.png" alt="한국외국어대학교 로고" className="h-[100px] w-[100px] -mt-5 object-contain p-1.5" />
           </div>
-          <h1 className="text-[18px] leading-5 font-bold tracking-wide text-[#00a0cf]">한국외국어대학교</h1>
-          <p className="text-[11px] font-bold text-[#00a0cf]">e-Class (LMS / TMS)</p>
+          <h1 className="mt-2 text-[25px] leading-tight font-black tracking-[0.15em] text-[#00a0cf]">한국외국어대학교</h1>
+          <p className="-mt-2 text-[19px] font-bold tracking-[0.02em] text-[#00a0cf]">e-Class (LMS/TMS)</p>
         </div>
 
         <div className="mb-2 flex items-center gap-2 font-['Dotum','Apple_SD_Gothic_Neo',sans-serif] text-[11px]">
           <div className="border border-[#c8c8c8] bg-white px-[8px] py-[5px]">
-            <Link to="/student/assignment-list" className="font-bold text-[#1a6d7e] hover:underline">
-              김성준
-            </Link>
+            <span className="font-bold text-[#1a6d7e]">
+              {user?.name ?? ''}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-gray-500">
             <button className="relative" aria-label="쪽지">
@@ -41,12 +49,12 @@ const Header = ({ messageCount, checkCount, bellCount }) => {
               <span className="absolute -top-1 -right-2 rounded-full bg-[#1a6d7e] px-1 text-[10px] text-white">{bellCount}</span>
             </button>
           </div>
-          <Link
-            to="/login"
+          <button
+            onClick={handleLogout}
             className="border border-[#c8c8c8] bg-[#f7f7f7] px-[6px] py-[4px] text-[#666666] hover:border-[#999] hover:bg-white"
           >
             로그아웃
-          </Link>
+          </button>
         </div>
     </header>
   );

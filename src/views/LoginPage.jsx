@@ -7,7 +7,7 @@ import Footer from '../components/eclass/Footer';
 
 const LoginSidebar = () => {
   return (
-    <aside className="w-[190px] shrink-0 px-3 pb-3">
+    <aside className="w-[240px] shrink-0 px-3 pb-3">
       <div className="-mt-5 mb-3 overflow-hidden rounded-[4px] border-[3px] border-[#d2d2d2] bg-white">
         <div className="border-b border-[#cfcfcf] bg-[#f3f6f7] py-2 text-center text-sm font-bold text-[#1a6d7e]">회원</div>
         <div className="p-2">
@@ -22,7 +22,7 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[12px] leading-[17px] text-[#666666]">
       <div className="absolute top-0 left-0 z-0 h-36 w-full bg-gradient-to-b from-[#767676] to-[#a7a7a7]" />
-      <div className="relative z-10 mx-auto w-[980px] pt-7">
+      <div className="relative z-10 mx-auto w-full max-w-[1440px] px-6 pt-7">
         <Header messageCount={0} checkCount={0} bellCount={0} />
         <GlobalNav />
         <MainLayout sidebar={<LoginSidebar />}>

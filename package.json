@@ -11,6 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "lightningcss-darwin-arm64": "^1.32.0",
+    "lightningcss-darwin-x64": "^1.32.0",
     "next": "^15.3.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -19,5 +21,11 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",
     "tailwindcss": "^4.2.2"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": ["darwin"],
+      "cpu": ["x64", "arm64"]
+    }
   }
 }
