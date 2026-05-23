@@ -210,6 +210,12 @@ function StudentAssignmentVerifyPage() {
   const securityLogRef = useRef([]);
   const devToolsCountRef = useRef(0);
   const focusLossCountRef = useRef(0);
+  const tabSwitchCountRef = useRef(0);
+  const windowBlurCountRef = useRef(0);
+  const cursorOutCountRef = useRef(0);
+  const fullscreenExitCountRef = useRef(0);
+  const micMuteCountRef = useRef(0);
+  const totalSilenceCountRef = useRef(0);
   const autoTimeoutRef = useRef(null);
   const fsTransitionRef = useRef(false);
   const sttOnRef = useRef(false);
@@ -311,6 +317,7 @@ function StudentAssignmentVerifyPage() {
     const blockContext = (e) => e.preventDefault();
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
+        tabSwitchCountRef.current += 1;
         setTabSwitchCount((prev) => prev + 1);
         securityLogRef.current.push({ type: 'tab_switch', at: new Date().toISOString() });
         setSecurityWarning('화면 전환이 감지되었습니다. 이 행위는 기록됩니다.');
@@ -351,6 +358,7 @@ function StudentAssignmentVerifyPage() {
       setTimeout(() => { fsTransitionRef.current = false; }, 600);
       setIsFullscreen(isFull);
       if (!isFull) {
+        fullscreenExitCountRef.current += 1;
         setFullscreenExitCount((p) => p + 1);
         securityLogRef.current.push({ type: 'fullscreen_exit', at: new Date().toISOString() });
         setSecurityWarning('전체화면 모드를 유지해야 합니다. 인터뷰 중 이탈은 기록됩니다.');
@@ -399,6 +407,7 @@ function StudentAssignmentVerifyPage() {
     const handleBlur = () => {
       setWindowFocused(false);
       focusLossCountRef.current += 1;
+      windowBlurCountRef.current += 1;
       setWindowBlurCount((p) => p + 1);
       securityLogRef.current.push({ type: 'focus_loss', subtype: 'window_blur', at: new Date().toISOString() });
       setSecurityWarning('포커스 이탈이 감지되었습니다. 이 행위는 기록됩니다.');
@@ -412,6 +421,7 @@ function StudentAssignmentVerifyPage() {
       if (fsTransitionRef.current) return; // 전체화면 전환 직후 무시
       if (e.relatedTarget === null) {
         focusLossCountRef.current += 1;
+        cursorOutCountRef.current += 1;
         setCursorOutCount((p) => p + 1);
         securityLogRef.current.push({ type: 'focus_loss', subtype: 'cursor_out', at: new Date().toISOString() });
         setSecurityWarning('커서가 화면을 벗어났습니다. 이 행위는 기록됩니다.');
@@ -456,6 +466,7 @@ function StudentAssignmentVerifyPage() {
         if (track) {
           track.addEventListener('mute', () => {
             setMicMuted(true);
+            micMuteCountRef.current += 1;
             setMicMuteCount((prev) => prev + 1);
             securityLogRef.current.push({ type: 'mic_mute', at: new Date().toISOString() });
             setSecurityWarning('마이크 음소거가 감지되었습니다. 이 행위는 기록됩니다.');
@@ -468,6 +479,7 @@ function StudentAssignmentVerifyPage() {
           // 마이크 뽑기 / 권한 해제 → track ended
           track.addEventListener('ended', () => {
             setMicMuted(true);
+            micMuteCountRef.current += 1;
             setMicMuteCount((prev) => prev + 1);
             setMicState('blocked');
             securityLogRef.current.push({ type: 'mic_disconnected', at: new Date().toISOString() });
@@ -645,6 +657,7 @@ function StudentAssignmentVerifyPage() {
             m.maxSilence = Math.max(m.maxSilence, duration);
             m.totalSilence += duration;
             m.count += 1;
+            totalSilenceCountRef.current += 1;
             setTotalSilenceCount((p) => p + 1);
             securityLogRef.current.push({
               type: 'silence_segment',
@@ -703,13 +716,13 @@ function StudentAssignmentVerifyPage() {
         questionIds: questions.map((q) => q.id),
         audioFiles,
         monitoring: {
-          tabSwitchCount:      tabSwitchCount,
-          windowBlurCount:     windowBlurCount,
-          cursorOutCount:      cursorOutCount,
-          fullscreenExitCount: fullscreenExitCount,
-          micMuteCount:        micMuteCount,
+          tabSwitchCount:      tabSwitchCountRef.current,
+          windowBlurCount:     windowBlurCountRef.current,
+          cursorOutCount:      cursorOutCountRef.current,
+          fullscreenExitCount: fullscreenExitCountRef.current,
+          micMuteCount:        micMuteCountRef.current,
           devToolsCount:       devToolsCountRef.current,
-          totalSilenceCount:   totalSilenceCount,
+          totalSilenceCount:   totalSilenceCountRef.current,
           answerTimeouts:      securityLogRef.current.filter((e) => e.type === 'answer_timeout').length,
         },
       });

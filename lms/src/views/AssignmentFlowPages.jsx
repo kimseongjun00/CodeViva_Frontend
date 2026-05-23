@@ -343,7 +343,7 @@ export const InstructorAssignmentDetailPage = () => {
       const poll = async () => {
         const subs = await refreshSubmissions();
         const evaluatable = subs.filter((s) =>
-          s.aiValidationStatus === 'READY_FOR_EVALUATION' ||
+          s.aiValidationStatus === 'AWAITING_EVALUATION' ||
           s.aiValidationStatus === 'EVALUATING' ||
           s.aiValidationStatus === 'EVALUATED' ||
           s.aiValidationStatus === 'EVALUATION_FAILED'
@@ -838,7 +838,7 @@ export const StudentAssignmentVerifyPage = () => {
           return;
         }
         const qs = sub.prompt1Questions ?? [];
-        if (qs.length > 0 || status === 'AWAITING_AUDIO_ANSWERS' || status === 'READY_FOR_EVALUATION' || status === 'EVALUATING' || status === 'EVALUATED') {
+        if (qs.length > 0 || status === 'AWAITING_AUDIO_ANSWERS' || status === 'AWAITING_EVALUATION' || status === 'EVALUATING' || status === 'EVALUATED') {
           setQuestions(qs.length > 0 ? qs : MOCK_QUESTIONS);
           setLoadingQuestions(false);
           return;
@@ -1989,7 +1989,7 @@ const getOverallGrade = (answers) => {
 };
 
 const EVAL_STATUS_BADGE = {
-  READY_FOR_EVALUATION:      { label: '평가 대기',    cls: 'bg-blue-50 text-blue-600' },
+  AWAITING_EVALUATION:       { label: '평가 대기',    cls: 'bg-blue-50 text-blue-600' },
   EVALUATING:                { label: '평가 중',      cls: 'bg-blue-100 text-blue-700' },
   EVALUATED:                 { label: '평가 완료',    cls: 'bg-emerald-50 text-emerald-600' },
   EVALUATION_FAILED:         { label: '평가 실패',    cls: 'bg-red-50 text-red-500' },
@@ -2033,7 +2033,7 @@ const SubmissionDashboard = ({
   const maxGradeCount = Math.max(...Object.values(gradeCounts), 1);
 
   const readyCount = submissions.filter((s) =>
-    s.aiValidationStatus === 'READY_FOR_EVALUATION' || s.aiValidationStatus === 'EVALUATING'
+    s.aiValidationStatus === 'AWAITING_EVALUATION' || s.aiValidationStatus === 'EVALUATING'
   ).length;
   const evaluatedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATED').length;
   const failedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATION_FAILED').length;

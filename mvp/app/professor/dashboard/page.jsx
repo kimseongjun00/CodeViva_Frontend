@@ -489,7 +489,17 @@ function ResultsTab({ courseId }) {
         const allSettled = evaluatable.length > 0 && evaluatable.every(
           (s) => s.aiValidationStatus === 'EVALUATED' || s.aiValidationStatus === 'EVALUATION_FAILED'
         );
-        if (allSettled) { setEvalStatus('done'); return; }
+        if (allSettled) {
+          setEvalStatus('done');
+          const pairs = await Promise.all(
+            subs.map(async (s) => {
+              try { return [s.id, await getAnswersBySubmission(s.id)]; }
+              catch { return [s.id, []]; }
+            })
+          );
+          setAnswersMap(Object.fromEntries(pairs));
+          return;
+        }
         evalPollingRef.current = setTimeout(poll, 10000);
       };
       poll();
@@ -661,12 +671,11 @@ function ResultsTab({ courseId }) {
                     const risk = computeSecurityRisk(sub);
                     const riskCfg = risk ? RISK_CFG[risk.overall] : null;
 
-                    const LEVEL_DOT = {
-                      excellent: 'bg-emerald-500',
-                      great:     'bg-green-400',
-                      good:      'bg-amber-400',
-                      bad:       'bg-orange-500',
-                      miss:      'bg-red-500',
+                    const LEVEL_BADGE = {
+                      excellent: { bg: 'bg-emerald-500', text: 'text-white', letter: 'E' },
+                      good:      { bg: 'bg-yellow-400',  text: 'text-white', letter: 'G' },
+                      bad:       { bg: 'bg-orange-500',  text: 'text-white', letter: 'B' },
+                      miss:      { bg: 'bg-red-500',     text: 'text-white', letter: 'M' },
                     };
 
                     return (
@@ -687,12 +696,17 @@ function ResultsTab({ courseId }) {
                           </td>
                           {/* 문항별 등급 신호등 */}
                           <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-center gap-1.5">
                               {[0, 1, 2].map((qi) => {
                                 const lv = answers[qi]?.level?.toLowerCase();
-                                return (
-                                  <span key={qi} title={lv ?? '미완료'}
-                                    className={`h-3.5 w-3.5 rounded-full ${lv ? (LEVEL_DOT[lv] ?? 'bg-slate-300') : 'bg-slate-200'}`} />
+                                const cfg = lv ? (LEVEL_BADGE[lv] ?? null) : null;
+                                return cfg ? (
+                                  <span key={qi} title={lv}
+                                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold ${cfg.bg} ${cfg.text}`}>
+                                    {cfg.letter}
+                                  </span>
+                                ) : (
+                                  <span key={qi} className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-400">-</span>
                                 );
                               })}
                             </div>
@@ -725,12 +739,16 @@ function ResultsTab({ courseId }) {
                                 ) : answers.map((ans, i) => {
                                   const lv = ans.level?.toLowerCase();
                                   const lvCfg = lv ? LEVEL_CFG[lv] : null;
-                                  const dotColor = lv ? (LEVEL_DOT[lv] ?? 'bg-slate-300') : 'bg-slate-200';
+                                  const lvBadge = lv ? (LEVEL_BADGE[lv] ?? null) : null;
                                   return (
                                     <details key={ans.id ?? i} className="group rounded-xl border border-slate-200 bg-white">
                                       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
                                         <div className="flex items-center gap-2">
-                                          <span className={`h-2.5 w-2.5 rounded-full ${dotColor}`} />
+                                          {lvBadge ? (
+                                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-extrabold ${lvBadge.bg} ${lvBadge.text}`}>{lvBadge.letter}</span>
+                                          ) : (
+                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-400">-</span>
+                                          )}
                                           <span className="text-sm font-bold text-slate-700">Q{ans.questionOrder ?? i + 1}</span>
                                           <span className="text-xs text-slate-500 line-clamp-1 max-w-xs">{ans.questionText}</span>
                                           {lvCfg && (
