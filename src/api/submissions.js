@@ -23,3 +23,6 @@ export const updateSubmission = ({ id, code }) =>
 
 export const deleteSubmission = (submissionId) =>
   apiClient(`/submissions/${submissionId}`, { method: 'DELETE' });
+
+export const evaluateSubmission = (submissionId) =>
+  apiClient(`/submissions/${submissionId}/evaluate`, { method: 'POST' });

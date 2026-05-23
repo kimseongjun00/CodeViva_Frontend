@@ -8,8 +8,9 @@ import {
   updateAssignment,
   deleteAssignment,
   getAssignmentAttachmentUrl,
+  evaluateAssignment,
 } from '../api/assignments';
-import { createSubmission, getSubmissionsByAssignment, getSubmission } from '../api/submissions';
+import { createSubmission, getSubmissionsByAssignment, getSubmission, evaluateSubmission } from '../api/submissions';
 import { saveBatchAnswers, getAnswersBySubmission } from '../api/submissionAnswers';
 import Header from '../components/eclass/Header';
 import GlobalNav from '../components/eclass/GlobalNav';
@@ -259,6 +260,9 @@ export const InstructorAssignmentDetailPage = () => {
   const [answersMap, setAnswersMap] = useState({});
   const [expandedRow, setExpandedRow] = useState(null);
   const [loadingAnswers, setLoadingAnswers] = useState(new Set());
+  const [evalStatus, setEvalStatus] = useState('idle'); // 'idle'|'triggering'|'running'|'done'
+  const [evalError, setEvalError] = useState('');
+  const evalPollingRef = useRef(null);
 
   useEffect(() => {
     if (!assignmentId) return;
@@ -321,6 +325,43 @@ export const InstructorAssignmentDetailPage = () => {
       alert('삭제에 실패했습니다.');
     }
   };
+
+  const refreshSubmissions = useCallback(async () => {
+    try {
+      const subs = await getSubmissionsByAssignment(assignmentId);
+      setSubmissions(subs);
+      return subs;
+    } catch { return []; }
+  }, [assignmentId]);
+
+  const startEvaluation = useCallback(async () => {
+    setEvalStatus('triggering');
+    setEvalError('');
+    try {
+      await evaluateAssignment(assignmentId);
+      setEvalStatus('running');
+      const poll = async () => {
+        const subs = await refreshSubmissions();
+        const evaluatable = subs.filter((s) =>
+          s.aiValidationStatus === 'READY_FOR_EVALUATION' ||
+          s.aiValidationStatus === 'EVALUATING' ||
+          s.aiValidationStatus === 'EVALUATED' ||
+          s.aiValidationStatus === 'EVALUATION_FAILED'
+        );
+        const allSettled = evaluatable.length > 0 && evaluatable.every(
+          (s) => s.aiValidationStatus === 'EVALUATED' || s.aiValidationStatus === 'EVALUATION_FAILED'
+        );
+        if (allSettled) { setEvalStatus('done'); return; }
+        evalPollingRef.current = setTimeout(poll, 10000);
+      };
+      poll();
+    } catch {
+      setEvalError('평가 시작에 실패했습니다. 다시 시도해주세요.');
+      setEvalStatus('idle');
+    }
+  }, [assignmentId, refreshSubmissions]);
+
+  useEffect(() => () => clearTimeout(evalPollingRef.current), []);
 
   const handleDownloadAttachment = async () => {
     try {
@@ -463,6 +504,10 @@ export const InstructorAssignmentDetailPage = () => {
               setExpandedRow={setExpandedRow}
               loadingAnswers={loadingAnswers}
               setLoadingAnswers={setLoadingAnswers}
+              evalStatus={evalStatus}
+              evalError={evalError}
+              onStartEval={startEvaluation}
+              onRefreshSubmissions={refreshSubmissions}
             />
           )}
         </div>
@@ -1218,17 +1263,6 @@ export const StudentAssignmentVerifyPage = () => {
         questionIds: questions.map((q) => q.id),
         audioFiles: questions.map((_, i) => recordedAudiosRef.current[i] ?? new Blob([], { type: 'audio/webm' })),
       });
-      // 음성 업로드 완료 → 평가 완료까지 폴링
-      let tries = 0;
-      while (tries < 60) {
-        await new Promise((r) => setTimeout(r, 3000));
-        tries++;
-        try {
-          const sub = await getSubmission(Number(submissionId));
-          if (sub.aiValidationStatus === 'EVALUATED') break;
-          if (sub.aiValidationStatus === 'EVALUATION_FAILED') break;
-        } catch { break; }
-      }
     } catch (e) {
       console.error('[CodeViva] 음성 답변 제출 실패:', e?.message, e?.body);
     } finally {
@@ -1954,9 +1988,21 @@ const getOverallGrade = (answers) => {
   return null;
 };
 
+const EVAL_STATUS_BADGE = {
+  READY_FOR_EVALUATION:      { label: '평가 대기',    cls: 'bg-blue-50 text-blue-600' },
+  EVALUATING:                { label: '평가 중',      cls: 'bg-blue-100 text-blue-700' },
+  EVALUATED:                 { label: '평가 완료',    cls: 'bg-emerald-50 text-emerald-600' },
+  EVALUATION_FAILED:         { label: '평가 실패',    cls: 'bg-red-50 text-red-500' },
+  AWAITING_AUDIO_ANSWERS:    { label: '음성 대기',    cls: 'bg-amber-50 text-amber-600' },
+  QUESTION_GENERATING:       { label: '질문 생성 중', cls: 'bg-slate-100 text-slate-500' },
+  QUESTION_GENERATION_FAILED:{ label: '질문 실패',    cls: 'bg-red-50 text-red-400' },
+};
+const getEvalBadge = (status) => EVAL_STATUS_BADGE[status] || { label: '미제출', cls: 'bg-slate-100 text-slate-400' };
+
 const SubmissionDashboard = ({
   assignment, submissions, selectedRows, allChecked, toggleRow, toggleAll,
   answersMap, setAnswersMap, expandedRow, setExpandedRow, loadingAnswers, setLoadingAnswers,
+  evalStatus, evalError, onStartEval, onRefreshSubmissions,
 }) => {
   const handleToggleRow = async (subId) => {
     if (expandedRow === subId) { setExpandedRow(null); return; }
@@ -1986,8 +2032,71 @@ const SubmissionDashboard = ({
 
   const maxGradeCount = Math.max(...Object.values(gradeCounts), 1);
 
+  const readyCount = submissions.filter((s) =>
+    s.aiValidationStatus === 'READY_FOR_EVALUATION' || s.aiValidationStatus === 'EVALUATING'
+  ).length;
+  const evaluatedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATED').length;
+  const failedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATION_FAILED').length;
+  const canTrigger = evalStatus === 'idle' || evalStatus === 'done';
+
   return (
     <div className="p-4 sm:p-6">
+      {/* 이해도 평가 트리거 배너 */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <div className="text-sm font-bold text-slate-700">AI 이해도 평가</div>
+          <div className="mt-0.5 text-xs text-slate-400">
+            음성 인터뷰를 완료한 학생들의 이해도를 일괄 평가합니다 (배치, 최대 2시간 소요).
+          </div>
+          {evalError && <div className="mt-1 text-xs font-semibold text-red-500">{evalError}</div>}
+        </div>
+        <div className="flex items-center gap-4">
+          {(evalStatus === 'running' || evalStatus === 'done') && submissions.length > 0 && (
+            <div className="min-w-[140px]">
+              <div className="mb-1 flex justify-between text-xs text-slate-500">
+                <span>평가 완료</span>
+                <span className="font-bold">{evaluatedCount + failedCount} / {submissions.length}</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-[#1a6d7e] transition-all duration-700"
+                  style={{ width: `${submissions.length ? ((evaluatedCount + failedCount) / submissions.length) * 100 : 0}%` }}
+                />
+              </div>
+              {failedCount > 0 && (
+                <div className="mt-0.5 text-[10px] text-red-400">실패 {failedCount}건 포함</div>
+              )}
+            </div>
+          )}
+          {evalStatus === 'done' && (
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+              평가 완료
+            </span>
+          )}
+          {evalStatus === 'running' && (
+            <div className="flex items-center gap-1.5 text-xs text-blue-600">
+              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              평가 진행 중
+            </div>
+          )}
+          <div className="flex flex-col items-end gap-1.5">
+            <button
+              onClick={onStartEval}
+              disabled={!canTrigger || readyCount === 0}
+              className="rounded-lg bg-[#1a6d7e] px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {evalStatus === 'triggering' ? '시작 중...' : evalStatus === 'running' ? '평가 중...' : '이해도 평가 시작'}
+            </button>
+            {readyCount === 0 && canTrigger && (
+              <span className="text-[10px] text-slate-400">평가 대기 중인 제출이 없습니다</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* 요약 카드 */}
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
@@ -2074,15 +2183,30 @@ const SubmissionDashboard = ({
                         {formatDateDisplay(sub.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {isLoading ? (
-                          <span className="inline-block h-7 w-10 animate-pulse rounded-full bg-slate-200" />
-                        ) : overallGrade ? (
-                          <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${gradeCfg.bg} ${gradeCfg.text} ${gradeCfg.ring}`}>
-                            {overallGrade}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          {isLoading ? (
+                            <span className="inline-block h-7 w-10 animate-pulse rounded-full bg-slate-200" />
+                          ) : overallGrade ? (
+                            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${gradeCfg.bg} ${gradeCfg.text} ${gradeCfg.ring}`}>
+                              {overallGrade}
+                            </span>
+                          ) : null}
+                          {(() => {
+                            const badge = getEvalBadge(sub.aiValidationStatus);
+                            const isEvaluating = sub.aiValidationStatus === 'EVALUATING';
+                            return (
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+                                {isEvaluating && (
+                                  <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                  </svg>
+                                )}
+                                {badge.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {sub.earnedScore != null ? (

@@ -36,3 +36,6 @@ export const updateAssignment = ({ id, title, openAt, dueAt, score, description,
 
 export const deleteAssignment = (assignmentId) =>
   apiClient(`/assignments/${assignmentId}`, { method: 'DELETE' });
+
+export const evaluateAssignment = (assignmentId) =>
+  apiClient(`/assignments/${assignmentId}/evaluate`, { method: 'POST' });
