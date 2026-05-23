@@ -1025,6 +1025,12 @@ function StudentAssignmentVerifyPage() {
                 </div>
               )}
 
+              {/* 답변 안내 */}
+              <div className="mb-4 flex items-center gap-3 rounded-xl border border-teal-200 bg-teal-50 px-5 py-3">
+                <span className="text-teal-500 text-lg">💡</span>
+                <p className="text-sm font-semibold text-teal-700">모든 질문은 <span className="font-extrabold">제출한 코드에 기반하여 설명</span>해야 합니다.</p>
+              </div>
+
               {/* 부정행위 경고 */}
               <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
                 <div className="mb-2 flex items-center gap-2">
@@ -1045,6 +1051,25 @@ function StudentAssignmentVerifyPage() {
                     <span>모든 이상 패턴(답변 지연, 읽는 말투, 비자연스러운 발화 등)은 AI가 자동으로 분석합니다.</span>
                   </li>
                 </ul>
+                <div className="mt-3 border-t border-red-200 pt-3">
+                  <p className="mb-2 text-xs font-bold text-red-700">자동 감지 항목 (모두 기록 및 교수자 공개)</p>
+                  <div className="grid grid-cols-2 gap-1.5 text-xs text-red-600">
+                    {[
+                      { icon: '🔀', label: '탭 전환' },
+                      { icon: '🖥', label: '앱 전환 (포커스 이탈)' },
+                      { icon: '🖱', label: '커서 화면 이탈' },
+                      { icon: '🔇', label: '마이크 음소거' },
+                      { icon: '⛶', label: '전체화면 해제' },
+                      { icon: '🔧', label: '개발자 도구 실행' },
+                      { icon: '🔇', label: '장시간 무음 구간' },
+                    ].map(({ icon, label }) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1139,6 +1164,10 @@ function StudentAssignmentVerifyPage() {
                       </p>
                     </LensMaskedText>
                     <p className="mt-3 text-xs text-slate-400">마우스를 올려 질문을 확인하세요</p>
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-teal-100 bg-teal-50 px-3 py-2">
+                      <span className="text-teal-500 text-sm">💡</span>
+                      <p className="text-xs font-semibold text-teal-700">코드에 기반하여 설명하시오.</p>
+                    </div>
                     <div className="mt-auto pt-4">
                       <div className="flex gap-1">
                         {questions.map((_, i) => (
