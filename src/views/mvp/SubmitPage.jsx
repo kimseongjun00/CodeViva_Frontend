@@ -54,21 +54,9 @@ const SubmitPage = () => {
     setSubmitting(true);
     setError('');
     try {
-      const description = JSON.stringify({
-        studentInfo: {
-          courseName: form.courseName,
-          studentId: form.studentId,
-          name: form.name,
-          department: form.department,
-          grade: form.grade,
-        },
-        code: code.trim(),
-      });
-
       const result = await createSubmission({
         assignmentId: Number(form.assignmentId),
-        description,
-        attachment: file || undefined,
+        code: code.trim(),
       });
 
       navigate(`/submit/verify?submissionId=${result.id}&assignmentId=${form.assignmentId}`);

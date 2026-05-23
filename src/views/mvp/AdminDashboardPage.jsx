@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { getAssignmentsByCourse } from '../../api/assignments';
+import React, { useState, useCallback, useRef } from 'react';
+import { getAssignmentsByCourse, evaluateAssignment } from '../../api/assignments';
 import { getSubmissionsByAssignment } from '../../api/submissions';
 import { getAnswersBySubmission } from '../../api/submissionAnswers';
 
@@ -46,6 +46,17 @@ const GradeBadge = ({ grade }) => {
   );
 };
 
+const EVAL_STATUS_BADGE = {
+  READY_FOR_EVALUATION:       { label: '평가 대기',    cls: 'bg-blue-50 text-blue-600' },
+  EVALUATING:                 { label: '평가 중',      cls: 'bg-blue-100 text-blue-700' },
+  EVALUATED:                  { label: '평가 완료',    cls: 'bg-emerald-50 text-emerald-600' },
+  EVALUATION_FAILED:          { label: '평가 실패',    cls: 'bg-red-50 text-red-500' },
+  AWAITING_AUDIO_ANSWERS:     { label: '음성 대기',    cls: 'bg-amber-50 text-amber-600' },
+  QUESTION_GENERATING:        { label: '질문 생성 중', cls: 'bg-slate-100 text-slate-500' },
+  QUESTION_GENERATION_FAILED: { label: '질문 실패',    cls: 'bg-red-50 text-red-400' },
+};
+const getEvalBadge = (status) => EVAL_STATUS_BADGE[status] || { label: '미제출', cls: 'bg-slate-100 text-slate-400' };
+
 /* ─── 과목 결과 패널 ─── */
 const CourseResultPanel = ({ courseId }) => {
   const [assignments, setAssignments] = useState(null);
@@ -54,6 +65,44 @@ const CourseResultPanel = ({ courseId }) => {
   const [answersMap, setAnswersMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [evalStatus, setEvalStatus] = useState('idle'); // 'idle'|'triggering'|'running'|'done'
+  const [evalError, setEvalError] = useState('');
+  const evalPollingRef = useRef(null);
+
+  const refreshSubmissions = useCallback(async (assignmentId) => {
+    try {
+      const subs = await getSubmissionsByAssignment(assignmentId);
+      setSubmissions(subs);
+      return subs;
+    } catch { return []; }
+  }, []);
+
+  const startEvaluation = useCallback(async (assignmentId) => {
+    setEvalStatus('triggering');
+    setEvalError('');
+    try {
+      await evaluateAssignment(assignmentId);
+      setEvalStatus('running');
+      const poll = async () => {
+        const subs = await refreshSubmissions(assignmentId);
+        const evaluatable = subs.filter((s) =>
+          s.aiValidationStatus === 'READY_FOR_EVALUATION' ||
+          s.aiValidationStatus === 'EVALUATING' ||
+          s.aiValidationStatus === 'EVALUATED' ||
+          s.aiValidationStatus === 'EVALUATION_FAILED'
+        );
+        const allSettled = evaluatable.length > 0 && evaluatable.every(
+          (s) => s.aiValidationStatus === 'EVALUATED' || s.aiValidationStatus === 'EVALUATION_FAILED'
+        );
+        if (allSettled) { setEvalStatus('done'); return; }
+        evalPollingRef.current = setTimeout(poll, 10000);
+      };
+      poll();
+    } catch {
+      setEvalError('평가 시작에 실패했습니다. 다시 시도해주세요.');
+      setEvalStatus('idle');
+    }
+  }, [refreshSubmissions]);
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -70,6 +119,9 @@ const CourseResultPanel = ({ courseId }) => {
 
   const loadSubmissions = useCallback(async (assignment) => {
     setSelectedAssignment(assignment);
+    setEvalStatus('idle');
+    setEvalError('');
+    clearTimeout(evalPollingRef.current);
     setLoading(true);
     setAnswersMap({});
     try {
@@ -168,6 +220,57 @@ const CourseResultPanel = ({ courseId }) => {
         </div>
       </div>
 
+      {/* 이해도 평가 트리거 */}
+      {(() => {
+        const readyCount = submissions.filter((s) =>
+          s.aiValidationStatus === 'READY_FOR_EVALUATION' || s.aiValidationStatus === 'EVALUATING'
+        ).length;
+        const evaluatedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATED').length;
+        const failedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATION_FAILED').length;
+        const canTrigger = evalStatus === 'idle' || evalStatus === 'done';
+        return (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div>
+              <div className="text-sm font-bold text-slate-700">AI 이해도 평가</div>
+              <div className="text-xs text-slate-400">음성 인터뷰 완료 학생을 일괄 평가합니다 (배치, 최대 2시간).</div>
+              {evalError && <div className="mt-1 text-xs font-semibold text-red-500">{evalError}</div>}
+            </div>
+            <div className="flex items-center gap-3">
+              {(evalStatus === 'running' || evalStatus === 'done') && submissions.length > 0 && (
+                <div className="min-w-[130px]">
+                  <div className="mb-1 flex justify-between text-xs text-slate-500">
+                    <span>완료</span>
+                    <span className="font-bold">{evaluatedCount + failedCount} / {submissions.length}</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-[#1a6d7e] transition-all duration-700"
+                      style={{ width: `${submissions.length ? ((evaluatedCount + failedCount) / submissions.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {evalStatus === 'running' && (
+                <svg className="h-4 w-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {evalStatus === 'done' && (
+                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">완료</span>
+              )}
+              <button
+                onClick={() => startEvaluation(selectedAssignment.id)}
+                disabled={!canTrigger || readyCount === 0}
+                className="rounded-lg bg-[#1a6d7e] px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {evalStatus === 'triggering' ? '시작 중...' : evalStatus === 'running' ? '평가 중...' : '이해도 평가 시작'}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 학생 목록 테이블 */}
       {loading ? (
         <div className="py-8 text-center text-sm text-slate-400">불러오는 중...</div>
@@ -180,6 +283,7 @@ const CourseResultPanel = ({ courseId }) => {
                 <th className="px-4 py-3">이름</th>
                 <th className="px-4 py-3">학과</th>
                 <th className="px-4 py-3 text-center">학년</th>
+                <th className="px-4 py-3 text-center">평가 상태</th>
                 <th className="px-4 py-3 text-center">AI 등급</th>
                 <th className="px-4 py-3 text-center">질문 수</th>
                 <th className="px-4 py-3 text-xs text-slate-400">제출일</th>
@@ -188,7 +292,7 @@ const CourseResultPanel = ({ courseId }) => {
             <tbody className="divide-y divide-slate-100">
               {submissions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-sm text-slate-400">
                     제출된 과제가 없습니다.
                   </td>
                 </tr>
@@ -200,6 +304,8 @@ const CourseResultPanel = ({ courseId }) => {
                   const submittedAt = sub.createdAt
                     ? new Date(sub.createdAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                     : '-';
+                  const badge = getEvalBadge(sub.aiValidationStatus);
+                  const isEvaluating = sub.aiValidationStatus === 'EVALUATING';
 
                   return (
                     <tr key={sub.id} className="hover:bg-slate-50">
@@ -214,6 +320,17 @@ const CourseResultPanel = ({ courseId }) => {
                       </td>
                       <td className="px-4 py-3 text-center text-xs text-slate-500">
                         {info?.grade ? `${info.grade}학년` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+                          {isEvaluating && (
+                            <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          )}
+                          {badge.label}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <GradeBadge grade={grade} />
