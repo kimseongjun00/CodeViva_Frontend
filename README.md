@@ -1,58 +1,18 @@
-# CodeViva 실행 가이드
+# CodeViva Frontend
 
-이 문서는 CodeViva 애플리케이션을 로컬 환경에서 설치하고 실행하는 방법을 안내합니다.
+## Structure
 
-## 🚀 시작하기
+| Directory | Description |
+|-----------|-------------|
+| `lms/` | 교수자용 LMS (Next.js) |
+| `mvp/` | 학생용 제출 포털 (Next.js) |
 
-### 사전 요구 사항
-- **Node.js**: v18.0.0 이상 권장
-- **pnpm**: 패키지 매니저 (프로젝트에 `pnpm-lock.yaml`이 포함되어 있습니다.)
-
-### 1단계: 패키지 설치
-터미널에서 프로젝트 루트 디렉토리로 이동한 후, 다음 명령어를 실행하여 의존성을 설치합니다.
+## Getting Started
 
 ```bash
-pnpm install
+# LMS
+cd lms && pnpm install && pnpm dev
+
+# 학생 제출 포털
+cd mvp && pnpm install && pnpm dev
 ```
-*(npm을 사용 중이라면 `npm install`을 실행하세요.)*
-
-### 2단계: 개발 서버 실행
-다음 명령어를 터미널에 입력하여 로컬 개발 서버를 실행합니다.
-
-```bash
-pnpm dev
-```
-*(npm을 사용 중이라면 `npm run dev`를 실행하세요.)*
-
-서버가 실행되면 웹 브라우저에서 `http://localhost:3000`으로 접속하여 결과를 확인할 수 있습니다.
-
----
-
-## 🏗 프로젝트 구조
-
-주요 디렉토리 및 파일 설명:
-
-- **`app/`**: Next.js 13+ App Router 기반의 페이지 파일들입니다.
-  - `page.jsx`: 메인 페이지 엔트리 모듈.
-  - `layout.jsx`: 공통 레이아웃 설정.
-- **`src/`**: 실제 애플리케이션의 핵심 로직과 컴포넌트가 위치합니다.
-  - `App.jsx`: 메인 애플리케이션 로직.
-  - `components/`: 재사용 가능한 UI 컴포넌트들.
-  - `views/`: 각 화면(View) 단위의 컴포넌트들.
-- **`public/`**: 이미지, 폰트 등 정적 자산(Static Assets).
-- **`package.json`**: 프로젝트 설정 및 실행 스크립트 정보.
-- **`next.config.mjs`**: Next.js 설정 파일.
-
----
-
-## 🛠 기타 명령어
-
-- **빌드 하기**: `pnpm build` (배포용 결과물 생성)
-- **운영 모드 실행**: `pnpm start` (빌드된 결과물 실행)
-
----
-
-## 📝 참고 사항
-- 이 프로젝트는 **Next.js**와 **React**를 기반으로 구축되었습니다.
-- 스타일은 CSS 및 TailwindCSS(PostCSS)를 활용하고 있습니다.
-- 현재 서버는 `3000`번 포트를 기본으로 사용합니다. 만약 포트 충돌이 발생하면 터미널 메시지를 확인해 주세요.
