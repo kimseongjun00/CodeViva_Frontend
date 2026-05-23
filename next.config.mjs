@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-const API_SERVER = 'http://44.220.251.236:8080';
+const API_SERVER = 'http://34.232.62.142:8080';
 
 const nextConfig = {
   outputFileTracingRoot: path.join(process.cwd()),

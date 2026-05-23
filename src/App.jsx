@@ -15,6 +15,8 @@ import {
   StudentAssignmentSubmitPage,
   StudentAssignmentVerifyPage,
 } from './views/AssignmentFlowPages';
+import SubmitPage from './views/mvp/SubmitPage';
+import AdminDashboardPage from './views/mvp/AdminDashboardPage';
 
 /* 로그인 필요 라우트 */
 const ProtectedRoute = ({ children }) => {
@@ -144,6 +146,11 @@ const App = () => {
 
       {/* 테스트 전용 (인증 없이 접근) */}
       <Route path="/test/verify" element={<StudentAssignmentVerifyPage />} />
+
+      {/* MVP — 별도 서비스 (인증 없음) */}
+      <Route path="/submit" element={<SubmitPage />} />
+      <Route path="/submit/verify" element={<StudentAssignmentVerifyPage />} />
+      <Route path="/admin" element={<AdminDashboardPage />} />
 
       {/* 404 */}
       <Route path="*" element={<Navigate to="/login" replace />} />

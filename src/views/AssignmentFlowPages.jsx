@@ -481,8 +481,7 @@ export const StudentAssignmentSubmitPage = () => {
 
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [description, setDescription] = useState('');
-  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -505,32 +504,28 @@ export const StudentAssignmentSubmitPage = () => {
 
   const handleSubmit = async () => {
     if (!assignmentId) return;
+    if (!code.trim()) {
+      setError('코드를 입력해주세요.');
+      return;
+    }
     setSubmitting(true);
     setError('');
-    // TODO: API 연결 후 아래 주석 해제, mock 코드 제거
-    await new Promise((res) => setTimeout(res, 800));
-    setSubmitting(false);
-    navigate(`/student/assignment-verify?assignmentId=${assignmentId}`);
-    return;
-    /* === API 연결 시 사용 ===
     try {
       const result = await createSubmission({
         assignmentId: Number(assignmentId),
-        description,
-        attachment: attachmentFile,
+        code: code.trim(),
       });
       navigate(`/student/assignment-verify?submissionId=${result.id}&assignmentId=${assignmentId}`);
     } catch (err) {
       const status = err?.message;
       if (status === '502') {
-        setError('AI 검증 서버가 현재 응답하지 않습니다. 잠시 후 다시 시도해주세요. (502)');
+        setError('AI 서버가 현재 응답하지 않습니다. 잠시 후 다시 시도해주세요. (502)');
       } else {
         setError('제출에 실패했습니다. 다시 시도해주세요.');
       }
     } finally {
       setSubmitting(false);
     }
-    */
   };
 
   if (!assignmentId) {
@@ -614,44 +609,27 @@ export const StudentAssignmentSubmitPage = () => {
             </div>
           )}
 
-          {/* 제출 설명 */}
+          {/* 코드 입력 */}
           <div className="mt-6">
-            <label className="mb-2 block text-sm font-bold text-slate-700">제출 설명</label>
-            <div className="rounded-xl border border-slate-200 bg-white p-1 transition-all focus-within:border-[#1a6d7e] focus-within:ring-1 focus-within:ring-[#1a6d7e]">
-              <textarea
-                className="h-40 w-full resize-none bg-transparent px-3 py-3 text-sm text-slate-800 focus:outline-none"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="제출 내용 설명, 실행 결과, 보완한 점 등을 입력하세요."
-              />
-            </div>
-          </div>
-
-          {/* 첨부파일 */}
-          <div className="mt-4">
-            <label className="mb-2 block text-sm font-bold text-slate-700">첨부파일</label>
-            <div className="group relative flex items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 transition-all hover:border-[#1a6d7e]/50 hover:bg-teal-50/30">
-              <div className="text-center">
-                <span className="mb-3 inline-block text-3xl grayscale transition-all group-hover:scale-110 group-hover:grayscale-0">
-                </span>
-                <div className="mt-2 flex items-center justify-center text-sm text-slate-600">
-                  <label className="relative mr-1 cursor-pointer rounded-md px-1 py-1 font-bold text-[#1a6d7e] hover:text-teal-700 focus-within:outline-none">
-                    <span>파일 선택</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  <p>또는 이곳으로 드래그 앤 드롭</p>
+            <label className="mb-2 block text-sm font-bold text-slate-700">
+              제출 코드 <span className="text-red-500">*</span>
+            </label>
+            <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-700 bg-slate-800 px-4 py-2.5">
+                <span className="font-mono text-xs text-slate-400">코드 입력</span>
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-red-500/70" />
+                  <span className="h-3 w-3 rounded-full bg-yellow-400/70" />
+                  <span className="h-3 w-3 rounded-full bg-green-500/70" />
                 </div>
-                <p className="mt-3 inline-block rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200 transition-all group-hover:ring-[#1a6d7e]/30">
-                  선택된 파일:{' '}
-                  <span className="ml-1 text-[#1a6d7e]">
-                    {attachmentFile ? attachmentFile.name : '없음'}
-                  </span>
-                </p>
               </div>
+              <textarea
+                className="h-72 w-full resize-none bg-transparent p-5 font-mono text-sm leading-relaxed text-slate-300 focus:outline-none"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="// 구현한 코드를 여기에 붙여넣거나 직접 입력하세요"
+                spellCheck={false}
+              />
             </div>
           </div>
 
@@ -668,7 +646,7 @@ export const StudentAssignmentSubmitPage = () => {
               disabled={submitting}
               className="flex items-center gap-1 rounded-lg bg-[#1a6d7e] px-8 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:opacity-60"
             >
-               {submitting ? '제출 중...' : '제출 및 검증'}
+               {submitting ? '제출 중...' : '제출 및 AI 검증 시작'}
             </button>
           </div>
         </div>
@@ -682,6 +660,49 @@ export const StudentAssignmentSubmitPage = () => {
 ────────────────────────────────────────────────────────── */
 const MAX_ANSWER_SECONDS = 180;
 
+const MOCK_CODE = `# 최장 증가 부분 수열 (LIS) - DP 풀이
+
+def solution(arr):
+    n = len(arr)
+    if n == 0:
+        return []
+
+    dp   = [1] * n   # dp[i]: arr[i]로 끝나는 LIS 길이
+    prev = [-1] * n  # 경로 역추적용
+
+    max_len, max_idx = 1, 0
+
+    for i in range(1, n):
+        for j in range(i):
+            if arr[j] < arr[i] and dp[j] + 1 > dp[i]:
+                dp[i]   = dp[j] + 1
+                prev[i] = j
+        if dp[i] > max_len:
+            max_len = dp[i]
+            max_idx = i
+
+    # 역추적으로 실제 수열 복원
+    result = []
+    idx = max_idx
+    while idx != -1:
+        result.append(arr[idx])
+        idx = prev[idx]
+
+    return result[::-1]
+
+
+if __name__ == "__main__":
+    # 테스트 케이스
+    arr1 = [3, 1, 4, 1, 5, 9, 2, 6]
+    print(solution(arr1))   # [1, 4, 5, 9]
+
+    arr2 = [5, 4, 3, 2, 1]
+    print(solution(arr2))   # [5]  (감소 수열 — 길이 1)
+
+    arr3 = []
+    print(solution(arr3))   # []
+`;
+
 const MOCK_QUESTIONS = [
   { id: 1, questionText: '제출한 코드에서 가장 중요한 로직을 설명해주세요. 왜 그 방식을 선택했나요?' },
   { id: 2, questionText: '시간 복잡도와 공간 복잡도를 분석해보세요. 최적화할 수 있는 부분이 있나요?' },
@@ -694,6 +715,7 @@ export const StudentAssignmentVerifyPage = () => {
   const submissionId = searchParams.get('submissionId');
 
   const [questions, setQuestions] = useState([]);
+  const [submissionCode, setSubmissionCode] = useState(MOCK_CODE);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [securityWarning, setSecurityWarning] = useState('');
@@ -751,22 +773,41 @@ export const StudentAssignmentVerifyPage = () => {
   const currentZoneRef = useRef(null);
   const zoneEnterTimeRef = useRef(null);
 
-  // 질문 로드 (API 실패 시 Mock 데이터 사용)
+  // 질문 로드 — QUESTION_GENERATING 상태면 3초마다 폴링
   useEffect(() => {
     if (!submissionId) {
       setQuestions(MOCK_QUESTIONS);
       setLoadingQuestions(false);
       return;
     }
-    getSubmission(submissionId)
-      .then((sub) => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const sub = await getSubmission(submissionId);
+        if (cancelled) return;
+        if (sub.code) setSubmissionCode(sub.code);
+        const status = sub.aiValidationStatus;
+        if (status === 'QUESTION_GENERATION_FAILED') {
+          setLoadError('질문 생성에 실패했습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+          setLoadingQuestions(false);
+          return;
+        }
         const qs = sub.prompt1Questions ?? [];
-        setQuestions(qs.length > 0 ? qs : MOCK_QUESTIONS);
-      })
-      .catch(() => {
-        setQuestions(MOCK_QUESTIONS);
-      })
-      .finally(() => setLoadingQuestions(false));
+        if (qs.length > 0 || status === 'AWAITING_AUDIO_ANSWERS' || status === 'READY_FOR_EVALUATION' || status === 'EVALUATING' || status === 'EVALUATED') {
+          setQuestions(qs.length > 0 ? qs : MOCK_QUESTIONS);
+          setLoadingQuestions(false);
+          return;
+        }
+        setTimeout(poll, 3000);
+      } catch {
+        if (!cancelled) {
+          setQuestions(MOCK_QUESTIONS);
+          setLoadingQuestions(false);
+        }
+      }
+    };
+    poll();
+    return () => { cancelled = true; };
   }, [submissionId]);
 
   // 보안 — 키보드 단축키 차단 + 복붙 차단 + 탭 전환 감지
@@ -1171,16 +1212,25 @@ export const StudentAssignmentVerifyPage = () => {
 
   const submitAllAnswers = useCallback(async () => {
     setSubmitting(true);
-    // API 연결 전 하드코딩: 1.5초 대기 후 완료 처리
-    await new Promise((res) => setTimeout(res, 1500));
     try {
       await saveBatchAnswers({
         submissionId: Number(submissionId),
         questionIds: questions.map((q) => q.id),
         audioFiles: questions.map((_, i) => recordedAudiosRef.current[i] ?? new Blob([], { type: 'audio/webm' })),
       });
-    } catch {
-      // API 실패해도 완료 화면으로 진행
+      // 음성 업로드 완료 → 평가 완료까지 폴링
+      let tries = 0;
+      while (tries < 60) {
+        await new Promise((r) => setTimeout(r, 3000));
+        tries++;
+        try {
+          const sub = await getSubmission(Number(submissionId));
+          if (sub.aiValidationStatus === 'EVALUATED') break;
+          if (sub.aiValidationStatus === 'EVALUATION_FAILED') break;
+        } catch { break; }
+      }
+    } catch (e) {
+      console.error('[CodeViva] 음성 답변 제출 실패:', e?.message, e?.body);
     } finally {
       // 부정행위 로그 콘솔 출력 (백엔드 연동 시 별도 API로 전송)
       console.info('[CodeViva Security Log]', {
@@ -1262,10 +1312,24 @@ export const StudentAssignmentVerifyPage = () => {
     }
   }, [answerLockSeconds, questionIndex, questions.length, submitAllAnswers]);
 
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 text-center">
+        <p className="mb-2 text-base font-bold text-red-400">오류가 발생했습니다</p>
+        <p className="text-sm text-slate-400">{loadError}</p>
+      </div>
+    );
+  }
+
   if (loadingQuestions) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-900">
-        <p className="text-sm text-gray-400">질문 로딩 중...</p>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900">
+        <svg className="mb-4 h-10 w-10 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <p className="text-base font-bold text-white">AI가 질문을 생성하고 있습니다</p>
+        <p className="mt-1 text-sm text-slate-400">제출한 코드를 분석 중입니다. 잠시만 기다려주세요...</p>
       </div>
     );
   }
@@ -1412,7 +1476,7 @@ export const StudentAssignmentVerifyPage = () => {
           </div>
         </div>
 
-        <div className="relative flex flex-1 flex-col p-6">
+        <div className="relative flex min-h-0 flex-1 flex-col p-6">
           {/* 마이크 테스트 */}
           {phase === 'voice-test' && (
             <div className="m-auto w-full max-w-2xl rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
@@ -1523,11 +1587,11 @@ export const StudentAssignmentVerifyPage = () => {
 
           {/* 질문 */}
           {phase === 'question' && (
-            <div className="flex flex-1 flex-col gap-8">
-              <div className="flex flex-1 grid-cols-1 gap-6 lg:grid lg:grid-cols-[1.3fr_1fr] min-h-[380px]">
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-[1.3fr_1fr]">
                 {/* 질문 정보 */}
                 <div
-                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                   onMouseEnter={() => handleZoneEnter('question')}
                   onMouseLeave={handleZoneLeave}
                 >
@@ -1566,7 +1630,7 @@ export const StudentAssignmentVerifyPage = () => {
 
                 {/* 제출 코드 에디터 */}
                 <div
-                  className="flex flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-sm"
+                  className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-sm"
                   onMouseEnter={() => handleZoneEnter('code')}
                   onMouseLeave={handleZoneLeave}
                 >
@@ -1597,16 +1661,8 @@ export const StudentAssignmentVerifyPage = () => {
                         });
                       }
                     }}
-                    className="flex-1 overflow-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">
-{`// 제출한 코드가 여기에 표시됩니다
-// (API 연동 후 실제 코드 로드 예정)
-
-public class Solution {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
-}`}
-                  </pre>
+                    className="min-h-0 flex-1 overflow-y-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap"
+                  >{submissionCode}</pre>
                 </div>
               </div>
 
@@ -1867,16 +1923,35 @@ const GRADE_ORDER = ['A', 'B', 'C', 'D', 'F'];
 const getGradeConfig = (grade) =>
   GRADE_CONFIG[grade] || { bg: 'bg-slate-100', text: 'text-slate-400', bar: 'bg-slate-300', ring: 'ring-slate-200', label: grade || '—', desc: '평가 대기', score: 0 };
 
+const LEVEL_GRADE_LMS = { excellent: 'A', great: 'A', good: 'B', hit: 'A', partial: 'C', bad: 'D', miss: 'F' };
+
 const getOverallGrade = (answers) => {
   if (!answers || answers.length === 0) return null;
+  // A/B/C/D/F 직접 평가
   const grades = answers.map((a) => a.evaluationStatus).filter((g) => GRADE_ORDER.includes(g));
-  if (grades.length === 0) return null;
-  const avg = grades.reduce((sum, g) => sum + (GRADE_CONFIG[g]?.score ?? 0), 0) / grades.length;
-  if (avg >= 4.5) return 'A';
-  if (avg >= 3.5) return 'B';
-  if (avg >= 2.5) return 'C';
-  if (avg >= 1.5) return 'D';
-  return 'F';
+  if (grades.length > 0) {
+    const avg = grades.reduce((sum, g) => sum + (GRADE_CONFIG[g]?.score ?? 0), 0) / grades.length;
+    if (avg >= 4.5) return 'A';
+    if (avg >= 3.5) return 'B';
+    if (avg >= 2.5) return 'C';
+    if (avg >= 1.5) return 'D';
+    return 'F';
+  }
+  // COMPLETED + level 방식
+  const completed = answers.filter((a) => a.evaluationStatus === 'COMPLETED');
+  if (completed.length > 0) {
+    const mapped = completed.map((a) => LEVEL_GRADE_LMS[a.level?.toLowerCase()] ?? null).filter(Boolean);
+    if (mapped.length > 0) {
+      const scores = mapped.map((g) => GRADE_CONFIG[g]?.score ?? 0);
+      const avg = scores.reduce((s, v) => s + v, 0) / scores.length;
+      if (avg >= 4.5) return 'A';
+      if (avg >= 3.5) return 'B';
+      if (avg >= 2.5) return 'C';
+      if (avg >= 1.5) return 'D';
+      return 'F';
+    }
+  }
+  return null;
 };
 
 const SubmissionDashboard = ({
@@ -1957,6 +2032,7 @@ const SubmissionDashboard = ({
               <th className="px-4 py-3 font-semibold text-slate-600">학생</th>
               <th className="hidden px-4 py-3 font-semibold text-slate-600 sm:table-cell">제출일시</th>
               <th className="px-4 py-3 text-center font-semibold text-slate-600">AI 검증 결과</th>
+              <th className="px-4 py-3 text-center font-semibold text-slate-600">점수</th>
               <th className="hidden px-4 py-3 text-center font-semibold text-slate-600 md:table-cell">질문 수</th>
               <th className="px-4 py-3 text-center font-semibold text-slate-600">상세 보기</th>
             </tr>
@@ -1964,7 +2040,7 @@ const SubmissionDashboard = ({
           <tbody className="divide-y divide-slate-100">
             {submissions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center">
+                <td colSpan={7} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-slate-400">
                     <span className="text-4xl"></span>
                     <span className="text-sm">아직 제출된 과제가 없습니다</span>
@@ -2008,6 +2084,19 @@ const SubmissionDashboard = ({
                           <span className="text-xs text-slate-300">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {sub.earnedScore != null ? (
+                          <div>
+                            <span className="text-sm font-bold text-slate-800">{sub.earnedScore}</span>
+                            <span className="text-xs text-slate-400">/{sub.assignmentScore ?? 100}</span>
+                            {sub.scorePercentage != null && (
+                              <div className="text-[10px] text-slate-400">{Math.round(sub.scorePercentage)}%</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
+                      </td>
                       <td className="hidden px-4 py-3 text-center md:table-cell">
                         {answers != null ? (
                           <span className="text-sm font-bold text-slate-700">{answers.length}개</span>
@@ -2032,7 +2121,7 @@ const SubmissionDashboard = ({
                     {/* 검증 상세 펼침 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={6} className="bg-gradient-to-b from-teal-50/60 to-white px-6 pb-5 pt-2">
+                        <td colSpan={7} className="bg-gradient-to-b from-teal-50/60 to-white px-6 pb-5 pt-2">
                           <div className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
                             <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3">
                               <div className="font-semibold text-slate-700">{sub.userName} 검증 결과</div>
@@ -2070,15 +2159,32 @@ const SubmissionDashboard = ({
                                             {ans.questionText || `질문 ${idx + 1}`}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                          {ans.evaluationStatus && (
-                                            <div className="flex items-center gap-1.5">
-                                              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${gc.bg} ${gc.text} ${gc.ring}`}>
-                                                {gc.label}
-                                              </span>
-                                              <span className={`text-xs font-semibold ${gc.text}`}>{gc.desc}</span>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          {/* 질문별 점수 */}
+                                          {ans.earnedQuestionScore != null && (
+                                            <div className="text-right">
+                                              <span className="text-sm font-bold text-slate-800">{ans.earnedQuestionScore}</span>
+                                              <span className="text-xs text-slate-400">/{ans.maxQuestionScore ?? '-'}</span>
+                                              {ans.level && (
+                                                <div className="text-[10px] font-semibold uppercase text-slate-400">{ans.level}</div>
+                                              )}
                                             </div>
                                           )}
+                                          {(() => {
+                                            const g = GRADE_CONFIG[ans.evaluationStatus]
+                                              ? { cfg: GRADE_CONFIG[ans.evaluationStatus], label: ans.evaluationStatus }
+                                              : ans.level && LEVEL_GRADE_LMS[ans.level?.toLowerCase()]
+                                                ? { cfg: GRADE_CONFIG[LEVEL_GRADE_LMS[ans.level.toLowerCase()]], label: LEVEL_GRADE_LMS[ans.level.toLowerCase()] }
+                                                : null;
+                                            return g ? (
+                                              <div className="flex items-center gap-1.5">
+                                                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${g.cfg.bg} ${g.cfg.text} ${g.cfg.ring}`}>
+                                                  {g.label}
+                                                </span>
+                                                {ans.level && <span className={`text-xs font-semibold ${g.cfg.text}`}>{ans.level}</span>}
+                                              </div>
+                                            ) : null;
+                                          })()}
                                           {ans.audioDownloadUrl && (
                                             <a
                                               href={ans.audioDownloadUrl}
@@ -2091,6 +2197,25 @@ const SubmissionDashboard = ({
                                           )}
                                         </div>
                                       </div>
+                                      {/* 평가 상세 */}
+                                      {(ans.level || ans.accuracy || ans.summary) && (
+                                        <div className="mt-3 space-y-2 rounded-lg border border-slate-100 bg-white p-3 text-xs">
+                                          {ans.summary && (
+                                            <p className="text-slate-600"><span className="font-semibold">종합:</span> {ans.summary}</p>
+                                          )}
+                                          <div className="flex flex-wrap gap-3">
+                                            {ans.level && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">수준: {ans.level}</span>}
+                                            {ans.accuracy && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">정확도: {ans.accuracy}</span>}
+                                            {ans.depth && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">깊이: {ans.depth}</span>}
+                                          </div>
+                                          {ans.refinedText && (
+                                            <details className="mt-1">
+                                              <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600">음성 변환 텍스트 보기</summary>
+                                              <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-500 leading-relaxed">{ans.refinedText}</p>
+                                            </details>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
