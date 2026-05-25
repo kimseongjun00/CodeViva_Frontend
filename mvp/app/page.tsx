@@ -25,15 +25,17 @@ export default function Home() {
 
         <div className="flex w-full max-w-xs flex-col gap-3">
           <Link
-            href="/professor"
-            className="block rounded-xl bg-slate-900 px-6 py-4 text-center text-sm font-bold text-white transition hover:bg-slate-800"
+            href="/student"
+            className="block rounded-xl bg-[#1a6d7e] px-6 py-4 text-center text-sm font-bold text-white transition hover:bg-teal-800"
           >
-            교수자 포털 로그인
+            학생 로그인
           </Link>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-4 text-center">
-            <p className="text-sm font-semibold text-slate-700">학생</p>
-            <p className="mt-0.5 text-xs text-slate-400">교수님께 받은 과제 링크로 접속하세요</p>
-          </div>
+          <Link
+            href="/professor"
+            className="block rounded-xl border border-slate-200 bg-white px-6 py-4 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            교수자 로그인
+          </Link>
         </div>
       </main>
 

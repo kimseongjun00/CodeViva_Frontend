@@ -7,7 +7,6 @@ import {
   createAssignment,
   updateAssignment,
   deleteAssignment,
-  getAssignmentAttachmentUrl,
   evaluateAssignment,
 } from '../api/assignments';
 import { createSubmission, getSubmissionsByAssignment, getSubmission, evaluateSubmission } from '../api/submissions';
@@ -18,6 +17,9 @@ import MainLayout from '../components/eclass/MainLayout';
 import Sidebar from '../components/eclass/Sidebar';
 import Footer from '../components/eclass/Footer';
 import ScrollUpButton from '../components/eclass/ScrollUpButton';
+import Pagination from '../components/eclass/Pagination';
+
+const SUB_PAGE_SIZE = 10;
 
 /* ──────────────────────────────────────────────────────────
    공통 레이아웃
@@ -27,9 +29,9 @@ const EclassPageFrame = ({ role, children }) => {
     role === 'instructor' ? '/instructor/assignment-list' : '/student/assignment-list';
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[20px] leading-[28px] text-[#666666]">
-      <div className="absolute top-0 left-0 z-0 h-[380px] w-full bg-gradient-to-b from-[#6b6b6b] via-[#8c8c8c] to-[#f8f9fa]" />
-      <div className="relative z-10 mx-auto w-full max-w-[1330px] px-6 pt-14">
+    <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[12px] leading-[17px] text-[#666666]">
+      <div className="absolute top-0 left-0 z-0 h-[400px] w-full bg-gradient-to-b from-[#8a8a8a] via-[#c4c4c4] to-[#efefef]" />
+      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-6 pt-14">
         <Header messageCount={0} checkCount={0} bellCount={0} />
         <GlobalNav />
         <MainLayout sidebar={<Sidebar currentPath={currentPath} />}>{children}</MainLayout>
@@ -80,7 +82,7 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
       <div className="border-b border-gray-300 bg-[#f3f3f3] px-3 py-2.5 font-bold text-gray-700">과제명</div>
       <div className="border-b border-gray-300 px-3 py-2.5">
         <input
-          className="h-9 w-full border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+          className="h-9 w-full rounded-sm border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
           value={form.title}
           onChange={handleChange('title')}
           disabled={disabled}
@@ -91,7 +93,7 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
       <div className="border-b border-gray-300 px-3 py-2.5">
         <input
           type="datetime-local"
-          className="h-9 w-[240px] border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+          className="h-9 w-[240px] rounded-sm border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
           value={form.openAt}
           onChange={handleChange('openAt')}
           disabled={disabled}
@@ -102,7 +104,7 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
       <div className="border-b border-gray-300 px-3 py-2.5">
         <input
           type="datetime-local"
-          className="h-9 w-[240px] border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+          className="h-9 w-[240px] rounded-sm border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
           value={form.dueAt}
           onChange={handleChange('dueAt')}
           disabled={disabled}
@@ -113,7 +115,7 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
       <div className="border-b border-gray-300 px-3 py-2.5">
         <input
           type="number"
-          className="h-9 w-[160px] border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+          className="h-9 w-[160px] rounded-sm border border-gray-300 px-2.5 py-1 text-sm disabled:bg-gray-100 disabled:text-gray-500"
           value={form.score}
           onChange={handleChange('score')}
           disabled={disabled}
@@ -123,7 +125,7 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
       <div className="border-b border-gray-300 bg-[#f3f3f3] px-3 py-2.5 font-bold text-gray-700">과제 설명</div>
       <div className="border-b border-gray-300 px-3 py-2.5">
         <textarea
-          className="h-[240px] w-full resize-none border border-gray-300 px-2.5 py-2 text-sm leading-6 disabled:bg-gray-100 disabled:text-gray-500"
+          className="h-[240px] w-full resize-none rounded-sm border border-gray-300 px-2.5 py-2 text-sm leading-6 disabled:bg-gray-100 disabled:text-gray-500"
           value={form.description}
           onChange={handleChange('description')}
           disabled={disabled}
@@ -132,13 +134,37 @@ const AssignmentEditorForm = ({ form, setForm, disabled }) => {
 
       <div className="border-b border-gray-300 bg-[#f3f3f3] px-3 py-2.5 font-bold text-gray-700">첨부파일</div>
       <div className="border-b border-gray-300 px-3 py-2.5">
-        {form.attachmentOriginalName && (
-          <div className="mb-1 text-sm text-gray-500">현재: {form.attachmentOriginalName}</div>
+        {form.attachmentOriginalName && !form.removeAttachment && (
+          <div className="mb-1.5 flex items-center gap-2 text-sm text-gray-500">
+            <span>📎 {form.attachmentOriginalName}</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, removeAttachment: true }))}
+                className="text-xs text-red-400 hover:text-red-600"
+              >
+                삭제
+              </button>
+            )}
+          </div>
+        )}
+        {form.removeAttachment && (
+          <div className="mb-1.5 flex items-center gap-2 text-xs text-red-500">
+            <span>기존 파일이 삭제됩니다.</span>
+            <button
+              type="button"
+              onClick={() => setForm((p) => ({ ...p, removeAttachment: false }))}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              취소
+            </button>
+          </div>
         )}
         {!disabled && (
           <input
             type="file"
-            className="h-9 w-[320px] border border-gray-300 px-2 py-1 text-sm"
+            accept=".pdf"
+            className="h-9 w-[320px] rounded-sm border border-gray-300 px-2 py-1 text-sm"
             onChange={handleFile}
           />
         )}
@@ -197,31 +223,37 @@ export const InstructorAssignmentCreatePage = () => {
 
   return (
     <EclassPageFrame role="instructor">
-      <div className="mx-auto max-w-6xl py-6">
-        <h2 className="mb-6 flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-800">
-          <span className="inline-block h-6 w-1.5 rounded-full bg-[#1a6d7e]" />
-          과제 출제
-        </h2>
+      <div>
+        <div className="mb-4 flex items-end justify-between border-b border-[#dfdfdf] pb-2">
+          <h2 className="text-[26px] leading-none font-bold text-[#5a5a5a]">과제 출제</h2>
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <span className="rounded-sm bg-[#1a6d7e] px-1 text-[11px] text-white">H</span>
+            <span>›</span>
+            <span>{selectedCourse?.name || '과목 미선택'}</span>
+            <span>›</span>
+            <span className="font-bold text-[#1a6d7e]">과제 출제</span>
+          </div>
+        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
+        <div className="rounded border border-[#d3d3d3] bg-white p-5">
           {selectedCourse && (
-            <div className="mb-4 rounded-lg bg-teal-50 px-4 py-2 text-sm text-teal-700">
+            <div className="mb-4 rounded border border-teal-200 bg-teal-50 px-4 py-2 text-sm text-teal-700">
               과목: <strong>{selectedCourse.name}</strong> (ID: {selectedCourse.id})
             </div>
           )}
           <AssignmentEditorForm form={form} setForm={setForm} disabled={false} />
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
-          <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-6">
+          <div className="mt-8 flex justify-end gap-3 border-t border-[#dfdfdf] pt-5">
             <Link
               to="/instructor/assignment-list"
-              className="rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+              className="rounded-sm border border-gray-300 bg-white px-6 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
             >
               취소
             </Link>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="rounded-lg bg-[#1a6d7e] px-8 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:opacity-60"
+              className="rounded-sm bg-[#1a6d7e] px-8 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
             >
               {submitting ? '출제 중...' : '과제 출제'}
             </button>
@@ -253,6 +285,7 @@ export const InstructorAssignmentDetailPage = () => {
     description: '',
     attachmentFile: null,
     attachmentOriginalName: '',
+    removeAttachment: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -281,6 +314,7 @@ export const InstructorAssignmentDetailPage = () => {
           description: a.description ?? '',
           attachmentFile: null,
           attachmentOriginalName: a.attachmentOriginalName ?? '',
+          removeAttachment: false,
         });
         setSubmissions(subs);
       })
@@ -300,7 +334,7 @@ export const InstructorAssignmentDetailPage = () => {
         score: form.score ? Number(form.score) : undefined,
         description: form.description,
         attachment: form.attachmentFile,
-        removeAttachment: form.attachmentFile ? false : undefined,
+        removeAttachment: form.removeAttachment || undefined,
       });
       setAssignment(updated);
       setIsEditing(false);
@@ -363,13 +397,8 @@ export const InstructorAssignmentDetailPage = () => {
 
   useEffect(() => () => clearTimeout(evalPollingRef.current), []);
 
-  const handleDownloadAttachment = async () => {
-    try {
-      const url = await getAssignmentAttachmentUrl(assignmentId);
-      window.open(url, '_blank');
-    } catch {
-      alert('다운로드 링크를 가져오지 못했습니다.');
-    }
+  const handleDownloadAttachment = () => {
+    if (assignment?.attachmentDownloadUrl) window.open(assignment.attachmentDownloadUrl, '_blank');
   };
 
   const toggleRow = (id) =>
@@ -404,32 +433,30 @@ export const InstructorAssignmentDetailPage = () => {
 
   return (
     <EclassPageFrame role="instructor">
-      <div className="mx-auto max-w-6xl py-6">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-800">
-            <span className="inline-block h-6 w-1.5 rounded-full bg-[#1a6d7e]" />
-            과제 상세 및 결과
-          </h2>
-          <Link
-            to="/instructor/assignment-list"
-            className="text-sm text-gray-500 hover:text-[#1a6d7e] hover:underline"
-          >
-            ← 목록으로
-          </Link>
+      <div>
+        <div className="mb-4 flex items-end justify-between border-b border-[#dfdfdf] pb-2">
+          <h2 className="text-[26px] leading-none font-bold text-[#5a5a5a]">과제 상세 및 결과</h2>
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <span className="rounded-sm bg-[#1a6d7e] px-1 text-[11px] text-white">H</span>
+            <span>›</span>
+            <span>{assignment?.title || '과제'}</span>
+            <span>›</span>
+            <Link to="/instructor/assignment-list" className="font-bold text-[#1a6d7e] hover:underline">목록으로</Link>
+          </div>
         </div>
 
         {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
 
         {/* 탭 */}
-        <div className="mb-6 flex space-x-1 rounded-xl bg-slate-100 p-1">
+        <div className="mb-4 flex border-b border-[#dfdfdf]">
           {['detail', 'dashboard'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
+              className={`px-6 py-2 text-sm font-semibold transition-all ${
                 activeTab === tab
-                  ? 'bg-white text-[#1a6d7e] shadow'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                  ? 'border-b-2 border-[#1a6d7e] text-[#1a6d7e] bg-white'
+                  : 'text-gray-500 hover:text-[#1a6d7e]'
               }`}
             >
               {tab === 'detail' ? '과제 상세 정보' : `제출 현황 (${submissions.length})`}
@@ -437,7 +464,7 @@ export const InstructorAssignmentDetailPage = () => {
           ))}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[500px] flex flex-col">
+        <div className="rounded border border-[#d3d3d3] bg-white overflow-hidden min-h-[500px] flex flex-col">
           {activeTab === 'detail' && (
             <div className="flex flex-1 flex-col p-6 lg:p-8">
               <AssignmentEditorForm form={form} setForm={setForm} disabled={!isEditing} />
@@ -453,10 +480,10 @@ export const InstructorAssignmentDetailPage = () => {
                 </div>
               )}
 
-              <div className="mt-8 flex items-center justify-between border-t border-slate-100 pt-6">
+              <div className="mt-8 flex items-center justify-between border-t border-[#dfdfdf] pt-5">
                 <button
                   onClick={handleDelete}
-                  className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-500 hover:bg-red-50"
+                  className="rounded-sm border border-red-200 px-4 py-2 text-sm font-semibold text-red-500 hover:bg-red-50"
                 >
                   과제 삭제
                 </button>
@@ -464,22 +491,25 @@ export const InstructorAssignmentDetailPage = () => {
                   {!isEditing ? (
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-1 rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-[#1a6d7e] shadow-sm ring-1 ring-inset ring-[#1a6d7e]/20 hover:bg-teal-50"
+                      className="flex items-center gap-1 rounded-sm border border-[#1a6d7e]/40 bg-white px-6 py-2 text-sm font-semibold text-[#1a6d7e] hover:bg-teal-50"
                     >
                       내용 수정하기
                     </button>
                   ) : (
                     <>
                       <button
-                        onClick={() => setIsEditing(false)}
-                        className="rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setForm((p) => ({ ...p, attachmentFile: null, removeAttachment: false }));
+                        }}
+                        className="rounded-sm border border-gray-300 bg-white px-6 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
                       >
                         취소
                       </button>
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="rounded-lg bg-[#1a6d7e] px-8 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:opacity-60"
+                        className="rounded-sm bg-[#1a6d7e] px-8 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
                       >
                         {saving ? '저장 중...' : '저장'}
                       </button>
@@ -538,13 +568,8 @@ export const StudentAssignmentSubmitPage = () => {
       .finally(() => setLoading(false));
   }, [assignmentId]);
 
-  const handleDownloadAttachment = async () => {
-    try {
-      const url = await getAssignmentAttachmentUrl(assignmentId);
-      window.open(url, '_blank');
-    } catch {
-      alert('첨부파일 다운로드 링크를 가져오지 못했습니다.');
-    }
+  const handleDownloadAttachment = () => {
+    if (assignment?.attachmentDownloadUrl) window.open(assignment.attachmentDownloadUrl, '_blank');
   };
 
   const handleSubmit = async () => {
@@ -596,55 +621,56 @@ export const StudentAssignmentSubmitPage = () => {
 
   return (
     <EclassPageFrame role="student">
-      <div className="mx-auto max-w-6xl py-6">
-        <h2 className="mb-6 flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-800">
-          <span className="inline-block h-6 w-1.5 rounded-full bg-[#1a6d7e]" />
-          과제 제출
-        </h2>
+      <div>
+        <div className="mb-4 flex items-end justify-between border-b border-[#dfdfdf] pb-2">
+          <h2 className="text-[26px] leading-none font-bold text-[#5a5a5a]">과제 제출</h2>
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <span className="rounded-sm bg-[#1a6d7e] px-1 text-[11px] text-white">H</span>
+            <span>›</span>
+            <Link to="/student/assignment-list" className="text-[#1a6d7e] hover:underline">과제</Link>
+            <span>›</span>
+            <span className="font-bold text-[#1a6d7e]">과제 제출</span>
+          </div>
+        </div>
 
-        <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:p-8">
-          {error && <p className="mb-4 text-xs text-red-500">{error}</p>}
+        <div className="flex flex-col rounded border border-[#d3d3d3] bg-white p-4">
+          {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
 
           {/* 과제 정보 */}
           {assignment && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">과제명</label>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#1a6d7e]">
+                <label className="mb-1 block text-xs font-bold text-slate-700">과제명</label>
+                <div className="rounded border border-slate-200 bg-[#f3f3f3] px-3 py-2 text-xs font-bold text-[#1a6d7e]">
                   {assignment.title}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">공개일 - 마감일</label>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-[#1a6d7e]">
+                  <label className="mb-1 block text-xs font-bold text-slate-700">공개일 - 마감일</label>
+                  <div className="rounded border border-slate-200 bg-[#f3f3f3] px-3 py-2 text-xs text-[#1a6d7e]">
                     {formatDateDisplay(assignment.openAt)} ~ {formatDateDisplay(assignment.dueAt)}
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">배점</label>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#1a6d7e]">
+                  <label className="mb-1 block text-xs font-bold text-slate-700">배점</label>
+                  <div className="rounded border border-slate-200 bg-[#f3f3f3] px-3 py-2 text-xs font-bold text-[#1a6d7e]">
                     {assignment.score != null ? `${assignment.score}점` : '비공개'}
                   </div>
                 </div>
               </div>
 
               {assignment.description && (
-                <div className="rounded-xl border border-teal-100 bg-teal-50/50 p-6 shadow-sm">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-teal-800">
-                     출제 과제 상세 내용
-                  </h3>
-                  <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                <div className="rounded border border-teal-100 bg-teal-50/50 p-4">
+                  <h3 className="mb-2 text-xs font-bold text-teal-800"> 출제 과제 상세 내용</h3>
+                  <div className="whitespace-pre-line text-xs leading-relaxed text-slate-700">
                     {assignment.description}
                   </div>
                   {assignment.attachmentOriginalName && (
-                    <div className="mt-4 flex items-center justify-between border-t border-teal-100/50 pt-4 text-xs text-teal-700">
+                    <div className="mt-3 flex items-center justify-between border-t border-teal-100/50 pt-3 text-xs text-teal-700">
                       <span className="font-medium">첨부 참조 파일:</span>
-                      <button
-                        onClick={handleDownloadAttachment}
-                        className="flex items-center gap-1 font-bold hover:underline"
-                      >
+                      <button onClick={handleDownloadAttachment} className="flex items-center gap-1 font-bold hover:underline">
                          {assignment.attachmentOriginalName} 다운로드
                       </button>
                     </div>
@@ -655,21 +681,21 @@ export const StudentAssignmentSubmitPage = () => {
           )}
 
           {/* 코드 입력 */}
-          <div className="mt-6">
-            <label className="mb-2 block text-sm font-bold text-slate-700">
+          <div className="mt-4">
+            <label className="mb-1.5 block text-xs font-bold text-slate-700">
               제출 코드 <span className="text-red-500">*</span>
             </label>
-            <div className="overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-700 bg-slate-800 px-4 py-2.5">
+            <div className="overflow-hidden rounded border border-slate-700 bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
                 <span className="font-mono text-xs text-slate-400">코드 입력</span>
                 <div className="flex gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-red-500/70" />
-                  <span className="h-3 w-3 rounded-full bg-yellow-400/70" />
-                  <span className="h-3 w-3 rounded-full bg-green-500/70" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
                 </div>
               </div>
               <textarea
-                className="h-72 w-full resize-none bg-transparent p-5 font-mono text-sm leading-relaxed text-slate-300 focus:outline-none"
+                className="h-60 w-full resize-none bg-transparent p-4 font-mono text-xs leading-relaxed text-slate-300 focus:outline-none"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="// 구현한 코드를 여기에 붙여넣거나 직접 입력하세요"
@@ -679,17 +705,17 @@ export const StudentAssignmentSubmitPage = () => {
           </div>
 
           {/* 버튼 */}
-          <div className="mt-8 flex items-center justify-end gap-3 border-t border-slate-100 pt-6">
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-[#dfdfdf] pt-4">
             <Link
               to="/student/assignment-list"
-              className="rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+              className="rounded-sm border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
             >
               취소
             </Link>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-1 rounded-lg bg-[#1a6d7e] px-8 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:opacity-60"
+              className="flex items-center gap-1 rounded-sm bg-[#1a6d7e] px-5 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
             >
                {submitting ? '제출 중...' : '제출 및 AI 검증 시작'}
             </button>
@@ -1437,7 +1463,7 @@ export const StudentAssignmentVerifyPage = () => {
         </div>
       )}
 
-      <div className="flex w-full max-w-[1330px] h-[1000px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5 relative">
+      <div className="flex w-full max-w-[1100px] h-[1000px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5 relative">
         {/* 헤더 */}
         <div className="z-10 shrink-0 flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -1945,47 +1971,58 @@ const LensMaskedText = ({ children, lensRadius = 90 }) => {
    제출 현황 대시보드 (교수용)
 ────────────────────────────────────────────────────────── */
 const GRADE_CONFIG = {
-  A: { bg: 'bg-emerald-100', text: 'text-emerald-700', bar: 'bg-emerald-500', ring: 'ring-emerald-300', label: 'A', desc: '매우 우수', score: 5 },
-  B: { bg: 'bg-sky-100',     text: 'text-sky-700',     bar: 'bg-sky-500',     ring: 'ring-sky-300',     label: 'B', desc: '우수',      score: 4 },
-  C: { bg: 'bg-amber-100',   text: 'text-amber-700',   bar: 'bg-amber-500',   ring: 'ring-amber-300',   label: 'C', desc: '보통',      score: 3 },
-  D: { bg: 'bg-orange-100',  text: 'text-orange-700',  bar: 'bg-orange-500',  ring: 'ring-orange-300',  label: 'D', desc: '미흡',      score: 2 },
-  F: { bg: 'bg-red-100',     text: 'text-red-700',     bar: 'bg-red-500',     ring: 'ring-red-300',     label: 'F', desc: '매우 미흡', score: 1 },
+  GRADE_1: { bg: 'bg-emerald-100', text: 'text-emerald-700', bar: 'bg-emerald-500', ring: 'ring-emerald-300', label: '1등급', desc: '최우수' },
+  GRADE_2: { bg: 'bg-sky-100',     text: 'text-sky-700',     bar: 'bg-sky-500',     ring: 'ring-sky-300',     label: '2등급', desc: '우수'   },
+  GRADE_3: { bg: 'bg-amber-100',   text: 'text-amber-700',   bar: 'bg-amber-500',   ring: 'ring-amber-300',   label: '3등급', desc: '보통'   },
+  GRADE_4: { bg: 'bg-orange-100',  text: 'text-orange-700',  bar: 'bg-orange-500',  ring: 'ring-orange-300',  label: '4등급', desc: '미흡'   },
+  GRADE_5: { bg: 'bg-red-100',     text: 'text-red-700',     bar: 'bg-red-500',     ring: 'ring-red-300',     label: '5등급', desc: '최하'   },
 };
 
-const GRADE_ORDER = ['A', 'B', 'C', 'D', 'F'];
+const GRADE_ORDER = ['GRADE_1', 'GRADE_2', 'GRADE_3', 'GRADE_4', 'GRADE_5'];
 
 const getGradeConfig = (grade) =>
-  GRADE_CONFIG[grade] || { bg: 'bg-slate-100', text: 'text-slate-400', bar: 'bg-slate-300', ring: 'ring-slate-200', label: grade || '—', desc: '평가 대기', score: 0 };
+  GRADE_CONFIG[grade] || { bg: 'bg-slate-100', text: 'text-slate-400', bar: 'bg-slate-300', ring: 'ring-slate-200', label: '—', desc: '평가 대기' };
 
-const LEVEL_GRADE_LMS = { excellent: 'A', great: 'A', good: 'B', hit: 'A', partial: 'C', bad: 'D', miss: 'F' };
+// 문항별 level 뱃지 (E/G/B/M)
+const LEVEL_BADGE = {
+  excellent: { bg: 'bg-emerald-500', text: 'text-white', letter: 'E' },
+  great:     { bg: 'bg-sky-500',     text: 'text-white', letter: 'G' },
+  good:      { bg: 'bg-yellow-400',  text: 'text-white', letter: 'G' },
+  bad:       { bg: 'bg-orange-500',  text: 'text-white', letter: 'B' },
+  miss:      { bg: 'bg-red-500',     text: 'text-white', letter: 'M' },
+};
 
-const getOverallGrade = (answers) => {
-  if (!answers || answers.length === 0) return null;
-  // A/B/C/D/F 직접 평가
-  const grades = answers.map((a) => a.evaluationStatus).filter((g) => GRADE_ORDER.includes(g));
-  if (grades.length > 0) {
-    const avg = grades.reduce((sum, g) => sum + (GRADE_CONFIG[g]?.score ?? 0), 0) / grades.length;
-    if (avg >= 4.5) return 'A';
-    if (avg >= 3.5) return 'B';
-    if (avg >= 2.5) return 'C';
-    if (avg >= 1.5) return 'D';
-    return 'F';
-  }
-  // COMPLETED + level 방식
-  const completed = answers.filter((a) => a.evaluationStatus === 'COMPLETED');
-  if (completed.length > 0) {
-    const mapped = completed.map((a) => LEVEL_GRADE_LMS[a.level?.toLowerCase()] ?? null).filter(Boolean);
-    if (mapped.length > 0) {
-      const scores = mapped.map((g) => GRADE_CONFIG[g]?.score ?? 0);
-      const avg = scores.reduce((s, v) => s + v, 0) / scores.length;
-      if (avg >= 4.5) return 'A';
-      if (avg >= 3.5) return 'B';
-      if (avg >= 2.5) return 'C';
-      if (avg >= 1.5) return 'D';
-      return 'F';
-    }
-  }
-  return null;
+// 보안 이상패턴 계산
+const RISK_RULES = [
+  { key: 'devToolsCount',       label: 'DevTools',    weight: 5, thresholds: [Infinity, 1] },
+  { key: 'tabSwitchCount',      label: '탭 전환',      weight: 4, thresholds: [1, 2] },
+  { key: 'windowBlurCount',     label: '앱 전환',      weight: 3, thresholds: [2, 4] },
+  { key: 'micMuteCount',        label: '음소거',        weight: 3, thresholds: [1, 2] },
+  { key: 'fullscreenExitCount', label: '전체화면 해제', weight: 2, thresholds: [1, 2] },
+  { key: 'cursorOutCount',      label: '커서 이탈',    weight: 1, thresholds: [3, 6] },
+  { key: 'totalSilenceCount',   label: '무음',          weight: 1, thresholds: [2, 4] },
+];
+const MAX_RISK_SCORE = RISK_RULES.reduce((s, r) => s + r.weight * 2, 0);
+
+const computeSecurityRisk = (sub) => {
+  if (sub.tabSwitchCount == null) return null;
+  const items = RISK_RULES.map((r) => {
+    const count = sub[r.key] ?? 0;
+    const [yellowAt, redAt] = r.thresholds;
+    const level = count >= redAt ? 'red' : count >= yellowAt ? 'yellow' : 'green';
+    return { ...r, count, level };
+  });
+  const score = items.reduce((s, i) => s + i.weight * (i.level === 'red' ? 2 : i.level === 'yellow' ? 1 : 0), 0);
+  const hasHighRed = items.some((i) => i.level === 'red' && i.weight >= 4);
+  const ratio = score / MAX_RISK_SCORE;
+  const overall = hasHighRed || ratio > 0.4 ? 'red' : ratio > 0.15 ? 'yellow' : 'green';
+  return { items, overall };
+};
+
+const RISK_CFG = {
+  red:    { label: '의심', bg: 'bg-red-100',    text: 'text-red-600',    dot: 'bg-red-500' },
+  yellow: { label: '주의', bg: 'bg-amber-100',  text: 'text-amber-600',  dot: 'bg-amber-400' },
+  green:  { label: '정상', bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-500' },
 };
 
 const EVAL_STATUS_BADGE = {
@@ -2004,6 +2041,8 @@ const SubmissionDashboard = ({
   answersMap, setAnswersMap, expandedRow, setExpandedRow, loadingAnswers, setLoadingAnswers,
   evalStatus, evalError, onStartEval, onRefreshSubmissions,
 }) => {
+  const [subPage, setSubPage] = useState(1);
+
   const handleToggleRow = async (subId) => {
     if (expandedRow === subId) { setExpandedRow(null); return; }
     setExpandedRow(subId);
@@ -2019,14 +2058,24 @@ const SubmissionDashboard = ({
     }
   };
 
-  const gradeCounts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+  // 문항별 등급을 바로 표시하기 위해 submissions 로드 시 전체 답변 선패치
+  useEffect(() => {
+    submissions.forEach((sub) => {
+      if (answersMap[sub.id] !== undefined) return;
+      setLoadingAnswers((prev) => new Set([...prev, sub.id]));
+      getAnswersBySubmission(sub.id)
+        .then((data) => setAnswersMap((prev) => ({ ...prev, [sub.id]: Array.isArray(data) ? data : [] })))
+        .catch(() => setAnswersMap((prev) => ({ ...prev, [sub.id]: [] })))
+        .finally(() => setLoadingAnswers((prev) => { const next = new Set(prev); next.delete(sub.id); return next; }));
+    });
+  }, [submissions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gradeCounts = { GRADE_1: 0, GRADE_2: 0, GRADE_3: 0, GRADE_4: 0, GRADE_5: 0 };
   let verifiedCount = 0;
   submissions.forEach((sub) => {
-    const answers = answersMap[sub.id];
-    if (answers && answers.length > 0) {
+    if (sub.aiValidationStatus === 'EVALUATED') {
       verifiedCount++;
-      const grade = getOverallGrade(answers);
-      if (grade) gradeCounts[grade]++;
+      if (sub.grade && gradeCounts[sub.grade] !== undefined) gradeCounts[sub.grade]++;
     }
   });
 
@@ -2040,24 +2089,24 @@ const SubmissionDashboard = ({
   const canTrigger = evalStatus === 'idle' || evalStatus === 'done';
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-3 sm:p-4">
       {/* 이해도 평가 트리거 배너 */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-white p-3 shadow-sm">
         <div>
-          <div className="text-sm font-bold text-slate-700">AI 이해도 평가</div>
-          <div className="mt-0.5 text-xs text-slate-400">
+          <div className="text-xs font-bold text-slate-700">AI 이해도 평가</div>
+          <div className="mt-0.5 text-[11px] text-slate-400">
             음성 인터뷰를 완료한 학생들의 이해도를 일괄 평가합니다 (배치, 최대 2시간 소요).
           </div>
-          {evalError && <div className="mt-1 text-xs font-semibold text-red-500">{evalError}</div>}
+          {evalError && <div className="mt-1 text-[11px] font-semibold text-red-500">{evalError}</div>}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {(evalStatus === 'running' || evalStatus === 'done') && submissions.length > 0 && (
-            <div className="min-w-[140px]">
-              <div className="mb-1 flex justify-between text-xs text-slate-500">
+            <div className="min-w-[120px]">
+              <div className="mb-1 flex justify-between text-[11px] text-slate-500">
                 <span>평가 완료</span>
                 <span className="font-bold">{evaluatedCount + failedCount} / {submissions.length}</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-[#1a6d7e] transition-all duration-700"
                   style={{ width: `${submissions.length ? ((evaluatedCount + failedCount) / submissions.length) * 100 : 0}%` }}
@@ -2069,24 +2118,24 @@ const SubmissionDashboard = ({
             </div>
           )}
           {evalStatus === 'done' && (
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+            <span className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
               평가 완료
             </span>
           )}
           {evalStatus === 'running' && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-600">
-              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <div className="flex items-center gap-1 text-[11px] text-blue-600">
+              <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               평가 진행 중
             </div>
           )}
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="flex flex-col items-end gap-1">
             <button
               onClick={onStartEval}
               disabled={!canTrigger || readyCount === 0}
-              className="rounded-lg bg-[#1a6d7e] px-5 py-2 text-sm font-semibold text-white shadow-md hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded bg-[#1a6d7e] px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {evalStatus === 'triggering' ? '시작 중...' : evalStatus === 'running' ? '평가 중...' : '이해도 평가 시작'}
             </button>
@@ -2098,31 +2147,35 @@ const SubmissionDashboard = ({
       </div>
 
       {/* 요약 카드 */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">총 제출</div>
-          <div className="text-3xl font-extrabold text-slate-800">{submissions.length}</div>
-          <div className="mt-1 text-xs text-slate-400">명</div>
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">총 제출</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-xl font-extrabold text-slate-800">{submissions.length}</div>
+            <div className="text-[11px] text-slate-400">명</div>
+          </div>
         </div>
-        <div className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-teal-400">검증 완료</div>
-          <div className="text-3xl font-extrabold text-teal-700">{verifiedCount}</div>
-          <div className="mt-1 text-xs text-teal-400">명 (상세 열람 시 집계)</div>
+        <div className="rounded border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-400">검증 완료</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-xl font-extrabold text-teal-700">{verifiedCount}</div>
+            <div className="text-[11px] text-teal-400">명</div>
+          </div>
         </div>
-        <div className="col-span-2 rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">검증 결과 분포</div>
-          <div className="flex items-end gap-2 h-14">
+        <div className="col-span-2 rounded border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">검증 결과 분포</div>
+          <div className="flex items-end gap-2 h-10">
             {GRADE_ORDER.map((grade) => {
               const cfg = GRADE_CONFIG[grade];
               const cnt = gradeCounts[grade];
               return (
-                <div key={grade} className="flex flex-1 flex-col items-center gap-1">
+                <div key={grade} className="flex flex-1 flex-col items-center gap-0.5">
                   <span className="text-[10px] text-slate-400">{cnt}명</span>
                   <div
                     className={`w-full rounded-t transition-all ${cfg.bar}`}
-                    style={{ height: `${Math.max(4, (cnt / maxGradeCount) * 32)}px` }}
+                    style={{ height: `${Math.max(3, (cnt / maxGradeCount) * 24)}px` }}
                   />
-                  <span className={`text-[11px] font-extrabold ${cfg.text}`}>{grade}</span>
+                  <span className={`text-[10px] font-extrabold ${cfg.text}`}>{cfg.label}</span>
                 </div>
               );
             })}
@@ -2131,23 +2184,26 @@ const SubmissionDashboard = ({
       </div>
 
       {/* 제출 목록 */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50">
+      <div className="overflow-x-auto rounded border border-slate-200 shadow-sm">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-slate-200 bg-[#f3f3f3]">
             <tr>
-              <th className="w-10 px-4 py-3 text-center">
+              <th className="w-8 px-3 py-2 text-center">
                 <input type="checkbox" checked={allChecked} onChange={toggleAll} className="rounded accent-teal-600" />
               </th>
-              <th className="px-4 py-3 font-semibold text-slate-600">학생</th>
-              <th className="hidden px-4 py-3 font-semibold text-slate-600 sm:table-cell">제출일시</th>
-              <th className="px-4 py-3 text-center font-semibold text-slate-600">AI 검증 결과</th>
-              <th className="px-4 py-3 text-center font-semibold text-slate-600">점수</th>
-              <th className="hidden px-4 py-3 text-center font-semibold text-slate-600 md:table-cell">질문 수</th>
-              <th className="px-4 py-3 text-center font-semibold text-slate-600">상세 보기</th>
+              <th className="px-3 py-2 font-semibold text-slate-600">학생</th>
+              <th className="hidden px-3 py-2 font-semibold text-slate-600 sm:table-cell">제출일시</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-600">상태</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-600">평균 등급</th>
+              <th className="hidden px-3 py-2 text-center font-semibold text-slate-600 md:table-cell">문항별 등급</th>
+              <th className="hidden px-3 py-2 text-center font-semibold text-slate-600 lg:table-cell">이상패턴</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-600">상세 보기</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {submissions.length === 0 ? (
+            {(() => {
+              const pagedSubs = submissions.slice((subPage-1)*SUB_PAGE_SIZE, subPage*SUB_PAGE_SIZE);
+              return submissions.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-slate-400">
@@ -2157,17 +2213,19 @@ const SubmissionDashboard = ({
                 </td>
               </tr>
             ) : (
-              submissions.map((sub) => {
+              pagedSubs.map((sub) => {
                 const answers = answersMap[sub.id];
                 const isLoading = loadingAnswers.has(sub.id);
-                const overallGrade = answers ? getOverallGrade(answers) : null;
-                const gradeCfg = overallGrade ? getGradeConfig(overallGrade) : null;
+                const gradeCfg = sub.grade ? getGradeConfig(sub.grade) : null;
                 const isExpanded = expandedRow === sub.id;
+                const risk = computeSecurityRisk(sub);
+                const riskCfg = risk ? RISK_CFG[risk.overall] : null;
+                const sortedAnswers = answers ? [...answers].sort((a, b) => (a.questionOrder ?? 0) - (b.questionOrder ?? 0)) : [];
 
                 return (
                   <React.Fragment key={sub.id}>
                     <tr className={`transition-colors ${isExpanded ? 'bg-teal-50/40' : 'hover:bg-slate-50/60'}`}>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <input
                           type="checkbox"
                           checked={selectedRows.includes(sub.id)}
@@ -2175,60 +2233,66 @@ const SubmissionDashboard = ({
                           className="rounded accent-teal-600"
                         />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <div className="font-semibold text-slate-800">{sub.userName || '(이름 없음)'}</div>
-                        <div className="text-xs text-slate-400">ID {sub.userId}</div>
+                        <div className="text-xs text-slate-400">{sub.userId}</div>
                       </td>
-                      <td className="hidden px-4 py-3 text-xs text-slate-500 sm:table-cell">
+                      <td className="hidden px-3 py-2 text-xs text-slate-500 sm:table-cell">
                         {formatDateDisplay(sub.createdAt)}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          {isLoading ? (
-                            <span className="inline-block h-7 w-10 animate-pulse rounded-full bg-slate-200" />
-                          ) : overallGrade ? (
-                            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${gradeCfg.bg} ${gradeCfg.text} ${gradeCfg.ring}`}>
-                              {overallGrade}
+                      {/* 상태 */}
+                      <td className="px-3 py-2 text-center">
+                        {(() => {
+                          const badge = getEvalBadge(sub.aiValidationStatus);
+                          const isEvaluating = sub.aiValidationStatus === 'EVALUATING';
+                          return (
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+                              {isEvaluating && (
+                                <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                              )}
+                              {badge.label}
                             </span>
-                          ) : null}
-                          {(() => {
-                            const badge = getEvalBadge(sub.aiValidationStatus);
-                            const isEvaluating = sub.aiValidationStatus === 'EVALUATING';
-                            return (
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
-                                {isEvaluating && (
-                                  <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                  </svg>
-                                )}
-                                {badge.label}
+                          );
+                        })()}
+                      </td>
+                      {/* 평균 등급 */}
+                      <td className="px-3 py-2 text-center">
+                        {gradeCfg ? (
+                          <span className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-xs font-bold ${gradeCfg.bg} ${gradeCfg.text}`}>
+                            {gradeCfg.label}
+                          </span>
+                        ) : <span className="text-xs text-slate-300">—</span>}
+                      </td>
+                      {/* 문항별 등급 */}
+                      <td className="hidden px-3 py-2 text-center md:table-cell">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {[0, 1, 2].map((qi) => {
+                            const lv = sortedAnswers[qi]?.level?.toLowerCase();
+                            const cfg = lv ? (LEVEL_BADGE[lv] ?? null) : null;
+                            return cfg ? (
+                              <span key={qi} title={lv}
+                                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold ${cfg.bg} ${cfg.text}`}>
+                                {cfg.letter}
                               </span>
+                            ) : (
+                              <span key={qi} className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-400">—</span>
                             );
-                          })()}
+                          })}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        {sub.earnedScore != null ? (
-                          <div>
-                            <span className="text-sm font-bold text-slate-800">{sub.earnedScore}</span>
-                            <span className="text-xs text-slate-400">/{sub.assignmentScore ?? 100}</span>
-                            {sub.scorePercentage != null && (
-                              <div className="text-[10px] text-slate-400">{Math.round(sub.scorePercentage)}%</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
+                      {/* 이상패턴 */}
+                      <td className="hidden px-3 py-2 text-center lg:table-cell">
+                        {riskCfg ? (
+                          <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${riskCfg.bg} ${riskCfg.text}`}>
+                            <span className={`h-2 w-2 rounded-full ${riskCfg.dot}`} />
+                            {riskCfg.label}
+                          </span>
+                        ) : <span className="text-xs text-slate-300">—</span>}
                       </td>
-                      <td className="hidden px-4 py-3 text-center md:table-cell">
-                        {answers != null ? (
-                          <span className="text-sm font-bold text-slate-700">{answers.length}개</span>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-2 text-center">
                         <button
                           onClick={() => handleToggleRow(sub.id)}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
@@ -2245,117 +2309,124 @@ const SubmissionDashboard = ({
                     {/* 검증 상세 펼침 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={7} className="bg-gradient-to-b from-teal-50/60 to-white px-6 pb-5 pt-2">
-                          <div className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
-                            <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3">
+                        <td colSpan={9} className="bg-gradient-to-b from-teal-50/60 to-white px-6 pb-5 pt-2">
+                          <div className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm space-y-3">
+                            <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3">
                               <div className="font-semibold text-slate-700">{sub.userName} 검증 결과</div>
-                              {sub.description && (
-                                <div className="rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600">
-                                  제출 메모: {sub.description}
-                                </div>
-                              )}
-                              {sub.attachmentOriginalName && (
-                                <div className="rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-600">
-                                   {sub.attachmentOriginalName}
-                                </div>
+                              {gradeCfg && (
+                                <span className={`rounded-lg px-2.5 py-0.5 text-xs font-bold ${gradeCfg.bg} ${gradeCfg.text}`}>
+                                  {gradeCfg.label} · {gradeCfg.desc}
+                                </span>
                               )}
                             </div>
 
                             {!answers || answers.length === 0 ? (
                               <div className="flex flex-col items-center gap-2 py-6 text-center text-slate-400">
-                                <span className="text-3xl"></span>
+                                <span className="text-3xl">🎤</span>
                                 <span className="text-sm">
                                   {answers === undefined ? '검증 데이터를 불러오는 중...' : '음성 검증 답변 데이터가 없습니다.'}
                                 </span>
                               </div>
                             ) : (
-                              <div className="space-y-3">
-                                {answers.map((ans, idx) => {
-                                  const gc = getGradeConfig(ans.evaluationStatus);
+                              <>
+                                {/* 문항별 답변 */}
+                                {sortedAnswers.map((ans, idx) => {
+                                  const lv = ans.level?.toLowerCase();
+                                  const lvBadge = lv ? (LEVEL_BADGE[lv] ?? null) : null;
                                   return (
-                                    <div key={ans.id ?? idx} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                                      <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700">
-                                            Q{ans.questionOrder ?? idx + 1}
-                                          </span>
-                                          <span className="text-sm font-medium text-slate-700 leading-snug">
-                                            {ans.questionText || `질문 ${idx + 1}`}
-                                          </span>
+                                    <details key={ans.id ?? idx} className="group rounded-xl border border-slate-200 bg-white">
+                                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {lvBadge ? (
+                                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold ${lvBadge.bg} ${lvBadge.text}`}>{lvBadge.letter}</span>
+                                          ) : (
+                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[10px] font-bold text-teal-700">Q{ans.questionOrder ?? idx + 1}</span>
+                                          )}
+                                          <span className="text-sm font-bold text-slate-700">Q{ans.questionOrder ?? idx + 1}</span>
+                                          <span className="text-xs text-slate-500 line-clamp-1 max-w-xs">{ans.questionText}</span>
                                         </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                          {/* 질문별 점수 */}
+                                        <div className="flex shrink-0 items-center gap-3">
                                           {ans.earnedQuestionScore != null && (
-                                            <div className="text-right">
-                                              <span className="text-sm font-bold text-slate-800">{ans.earnedQuestionScore}</span>
-                                              <span className="text-xs text-slate-400">/{ans.maxQuestionScore ?? '-'}</span>
-                                              {ans.level && (
-                                                <div className="text-[10px] font-semibold uppercase text-slate-400">{ans.level}</div>
+                                            <span className="text-xs font-bold text-slate-600">
+                                              {ans.earnedQuestionScore}
+                                              <span className="font-normal text-slate-400">/{ans.maxQuestionScore ?? '-'}</span>
+                                              {ans.questionWeight != null && (
+                                                <span className="ml-1 text-[10px] text-slate-400">({Math.round(ans.questionWeight * 100)}%)</span>
                                               )}
-                                            </div>
+                                            </span>
                                           )}
-                                          {(() => {
-                                            const g = GRADE_CONFIG[ans.evaluationStatus]
-                                              ? { cfg: GRADE_CONFIG[ans.evaluationStatus], label: ans.evaluationStatus }
-                                              : ans.level && LEVEL_GRADE_LMS[ans.level?.toLowerCase()]
-                                                ? { cfg: GRADE_CONFIG[LEVEL_GRADE_LMS[ans.level.toLowerCase()]], label: LEVEL_GRADE_LMS[ans.level.toLowerCase()] }
-                                                : null;
-                                            return g ? (
-                                              <div className="flex items-center gap-1.5">
-                                                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-extrabold ring-2 ${g.cfg.bg} ${g.cfg.text} ${g.cfg.ring}`}>
-                                                  {g.label}
-                                                </span>
-                                                {ans.level && <span className={`text-xs font-semibold ${g.cfg.text}`}>{ans.level}</span>}
-                                              </div>
-                                            ) : null;
-                                          })()}
-                                          {ans.audioDownloadUrl && (
-                                            <a
-                                              href={ans.audioDownloadUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="rounded-full bg-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-300"
-                                            >
-                                               음성
-                                            </a>
-                                          )}
+                                          <span className="text-[11px] text-slate-400 group-open:hidden">펼치기 ▼</span>
+                                          <span className="hidden text-[11px] text-slate-400 group-open:inline">접기 ▲</span>
                                         </div>
-                                      </div>
-                                      {/* 평가 상세 */}
-                                      {(ans.level || ans.accuracy || ans.summary) && (
-                                        <div className="mt-3 space-y-2 rounded-lg border border-slate-100 bg-white p-3 text-xs">
-                                          {ans.summary && (
-                                            <p className="text-slate-600"><span className="font-semibold">종합:</span> {ans.summary}</p>
-                                          )}
-                                          <div className="flex flex-wrap gap-3">
-                                            {ans.level && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">수준: {ans.level}</span>}
-                                            {ans.accuracy && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">정확도: {ans.accuracy}</span>}
-                                            {ans.depth && <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-600">깊이: {ans.depth}</span>}
+                                      </summary>
+                                      <div className="border-t border-slate-100 px-4 py-3 space-y-2">
+                                        <p className="text-xs font-medium leading-relaxed text-slate-700">{ans.questionText}</p>
+                                        {ans.audioDownloadUrl && (
+                                          <div className="rounded-lg bg-slate-50 p-2.5">
+                                            <p className="mb-1.5 text-[11px] font-semibold text-slate-500">음성 답변</p>
+                                            <audio controls src={ans.audioDownloadUrl} className="h-8 w-full" />
                                           </div>
-                                          {ans.refinedText && (
-                                            <details className="mt-1">
-                                              <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-600">음성 변환 텍스트 보기</summary>
-                                              <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-500 leading-relaxed">{ans.refinedText}</p>
-                                            </details>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
+                                        )}
+                                        {ans.summary && (
+                                          <div className="rounded-lg bg-slate-50 p-2.5">
+                                            <p className="text-[11px] font-semibold text-slate-500">요약</p>
+                                            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-600">{ans.summary}</p>
+                                          </div>
+                                        )}
+                                        {(ans.accuracy || ans.depth) && (
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {ans.accuracy && <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">정확도: {ans.accuracy}</span>}
+                                            {ans.depth && <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">깊이: {ans.depth}</span>}
+                                          </div>
+                                        )}
+                                        {ans.rawStt && (
+                                          <div className="rounded-lg bg-slate-50 p-2.5">
+                                            <p className="text-[11px] font-semibold text-slate-500">음성 변환 텍스트</p>
+                                            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{ans.rawStt}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </details>
                                   );
                                 })}
-                                {/* 종합 등급 */}
-                                {overallGrade && (
-                                  <div className={`flex items-center justify-between rounded-xl px-5 py-4 ${gradeCfg?.bg || 'bg-slate-100'}`}>
-                                    <div>
-                                      <div className={`text-xs font-semibold ${gradeCfg?.text}`}>AI 이해도 종합 등급</div>
-                                      <div className={`text-sm font-bold ${gradeCfg?.text}`}>{gradeCfg?.desc}</div>
+
+                                {/* 보안 이상패턴 */}
+                                <details className="group rounded-xl border border-slate-200 bg-white">
+                                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 select-none">
+                                    <span className="text-sm font-bold text-slate-700">보안 이상패턴</span>
+                                    <div className="flex items-center gap-3">
+                                      {riskCfg && (
+                                        <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${riskCfg.bg} ${riskCfg.text}`}>
+                                          <span className={`h-2 w-2 rounded-full ${riskCfg.dot}`} />
+                                          {riskCfg.label}
+                                        </span>
+                                      )}
+                                      <span className="text-[11px] text-slate-400 group-open:hidden">펼치기 ▼</span>
+                                      <span className="hidden text-[11px] text-slate-400 group-open:inline">접기 ▲</span>
                                     </div>
-                                    <span className={`flex h-14 w-14 items-center justify-center rounded-full text-3xl font-extrabold ring-4 ${gradeCfg?.bg} ${gradeCfg?.text} ${gradeCfg?.ring}`}>
-                                      {overallGrade}
-                                    </span>
+                                  </summary>
+                                  <div className="border-t border-slate-100 px-4 py-3">
+                                    {risk ? (
+                                      <div className="space-y-1.5">
+                                        {risk.items.map((item) => {
+                                          const c = RISK_CFG[item.level];
+                                          return (
+                                            <div key={item.key} className={`flex items-center justify-between rounded-lg px-3 py-2 ${item.level !== 'green' ? c.bg : 'bg-slate-50'}`}>
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-xs text-slate-600">{item.label}</span>
+                                                <span className="text-[10px] text-slate-400">×{item.weight}</span>
+                                              </div>
+                                              <span className={`text-xs font-bold tabular-nums ${item.level !== 'green' ? c.text : 'text-slate-400'}`}>{item.count}회</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-slate-400">모니터링 데이터 없음</p>
+                                    )}
                                   </div>
-                                )}
-                              </div>
+                                </details>
+                              </>
                             )}
                           </div>
                         </td>
@@ -2364,9 +2435,11 @@ const SubmissionDashboard = ({
                   </React.Fragment>
                 );
               })
-            )}
+            );
+          })()}
           </tbody>
         </table>
+        <Pagination currentPage={subPage} totalPages={Math.ceil(submissions.length/SUB_PAGE_SIZE)} onPageChange={setSubPage} />
       </div>
     </div>
   );

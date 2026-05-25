@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } fr
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSubmission, saveBatchAnswers, updateSubmission } from '../../../lib/api';
 
+// 무음 감지 임계치 — 평균 주파수 에너지 (0~255). 낮출수록 민감해짐
+const SILENCE_THRESHOLD = 8;
+
 /* ──────────────────────────────────────────────────────────
    헬퍼
 ────────────────────────────────────────────────────────── */
@@ -165,6 +168,7 @@ function StudentAssignmentVerifyPage() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [pollTimedOut, setPollTimedOut] = useState(false);
+  const [interviewBlocked, setInterviewBlocked] = useState(false);
   const submissionCodeRef = useRef('');
   const [securityWarning, setSecurityWarning] = useState('');
 
@@ -236,6 +240,12 @@ function StudentAssignmentVerifyPage() {
       setLoadingQuestions(false);
       return;
     }
+    // 이미 질문을 받은 적 있으면 재접속 차단
+    if (localStorage.getItem(`cv_interview_started_${submissionId}`)) {
+      setInterviewBlocked(true);
+      return;
+    }
+
     let cancelled = false;
     let pollCount = 0;
     const MAX_POLLS = 40; // 3초 × 40 = 2분
@@ -265,23 +275,32 @@ function StudentAssignmentVerifyPage() {
           return;
         }
         const qs = sub.prompt1Questions ?? [];
-        if (qs.length > 0 || status === 'AWAITING_AUDIO_ANSWERS') {
-          setQuestions(qs.length > 0 ? qs : MOCK_QUESTIONS);
+        if (qs.length > 0) {
+          // 재접속 차단용: 질문을 받은 시점을 localStorage에 기록
+          localStorage.setItem(`cv_interview_started_${submissionId}`, '1');
+          setQuestions(qs);
           setLoadingQuestions(false);
           return;
         }
-        // 2분 초과 → 타임아웃
+        // 질문이 아직 없으면 (AWAITING_AUDIO_ANSWERS 포함) 계속 폴링
+        // mock ID로 폴백하면 배치 제출 시 400 에러 발생
         pollCount += 1;
         if (pollCount >= MAX_POLLS) {
           setPollTimedOut(true);
           setLoadingQuestions(false);
           return;
         }
-        setTimeout(poll, 3000);
+        setTimeout(poll, 1500);
       } catch {
         if (!cancelled) {
-          setQuestions(MOCK_QUESTIONS);
-          setLoadingQuestions(false);
+          // 네트워크 오류 → 재시도
+          pollCount += 1;
+          if (pollCount >= MAX_POLLS) {
+            setPollTimedOut(true);
+            setLoadingQuestions(false);
+          } else {
+            setTimeout(poll, 1500);
+          }
         }
       }
     };
@@ -511,7 +530,7 @@ function StudentAssignmentVerifyPage() {
           });
           let energySum = 0;
           for (let i = 0; i < data.length; i++) energySum += data[i];
-          const isActive = energySum / data.length > 16;
+          const isActive = energySum / data.length > SILENCE_THRESHOLD;
           sttOnRef.current = isActive;
           setSttOn(isActive);
           setWaveHeights(levels);
@@ -653,7 +672,7 @@ function StudentAssignmentVerifyPage() {
         }
         if (silenceStartRef.current !== null) {
           const duration = elapsed - silenceStartRef.current;
-          if (duration >= 3) {
+          if (duration >= 5) {
             m.maxSilence = Math.max(m.maxSilence, duration);
             m.totalSilence += duration;
             m.count += 1;
@@ -824,6 +843,26 @@ function StudentAssignmentVerifyPage() {
     window.location.reload();
   };
 
+  if (interviewBlocked) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-900/50">
+          <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+        <p className="mb-1 text-base font-bold text-red-400">재응시 불가</p>
+        <p className="text-sm text-slate-400">이미 AI 검증 인터뷰가 시작된 제출입니다.<br/>중도 이탈 후 재응시는 허용되지 않습니다.</p>
+        <button
+          onClick={() => router.push('/student/dashboard')}
+          className="mt-6 rounded-lg border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+        >
+          대시보드로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
   if (loadError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 text-center">
@@ -835,7 +874,7 @@ function StudentAssignmentVerifyPage() {
 
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center py-6 px-6" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+    <div className="min-h-screen bg-white flex flex-col" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
       {/* 인쇄/PDF 차단 + 스크린샷 시 흐려지는 효과 */}
       <style>{`
         @media print { body { display: none !important; } }
@@ -903,7 +942,7 @@ function StudentAssignmentVerifyPage() {
         </div>
       )}
 
-      <div className="flex w-full max-w-[1330px] h-[1000px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5 relative">
+      <div className="relative flex flex-1 flex-col overflow-hidden bg-white">
         {/* 헤더 */}
         <div className="z-10 shrink-0 flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -979,142 +1018,114 @@ function StudentAssignmentVerifyPage() {
         <div className="relative flex min-h-0 flex-1 flex-col p-6">
           {/* 마이크 테스트 */}
           {phase === 'voice-test' && (
-            <div className="m-auto w-full max-w-2xl rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+            <div className="m-auto w-full max-w-[600px]">
               {/* 타이틀 + 타이머 */}
-              <div className="mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-teal-100 bg-teal-50">
-                    <span className="text-xl">🎙</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">마이크 및 환경 테스트</h3>
-                    <p className="text-sm text-slate-500">AI가 질문을 준비하는 동안 마이크를 테스트하세요.</p>
-                  </div>
+              <div className="mb-7 flex items-start justify-between">
+                <div>
+                  <h3 className="text-[22px] font-bold tracking-tight text-slate-900">마이크 테스트</h3>
+                  <p className="mt-1 text-[13px] text-slate-500">AI 질문 준비 중 — 마이크와 환경을 점검하세요.</p>
                 </div>
-                {/* 타이머 원형 */}
-                <div className="flex flex-col items-center">
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-teal-100 bg-teal-50">
-                    <span className="text-xl font-bold tabular-nums text-teal-600">{micTestTimer}</span>
-                  </div>
-                  <span className="mt-1 text-xs text-slate-400">초 남음</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[30px] font-extrabold tabular-nums leading-none text-slate-800">{micTestTimer}</span>
+                  <span className="mt-0.5 text-[11px] text-slate-400">초 남음</span>
                 </div>
               </div>
 
               {/* AI 준비 상태 */}
               {pollTimedOut ? (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                  <p className="mb-2 text-sm font-bold text-red-700">⏱ 질문 생성이 지연되고 있습니다</p>
-                  <p className="mb-3 text-xs text-red-600">AI 서버가 응답하지 않습니다. 다시 시도하면 질문 생성을 재요청합니다.</p>
-                  <button onClick={handleRetryGeneration}
-                    className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700">
-                    다시 시도하기
-                  </button>
+                <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3.5">
+                  <p className="text-[13px] font-bold text-red-700">질문 생성 시간 초과</p>
+                  <p className="mt-0.5 text-[12px] text-red-500">AI 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.</p>
+                  <div className="mt-2.5 flex gap-2">
+                    <button onClick={handleRetryGeneration}
+                      className="rounded-md bg-red-600 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-red-700">
+                      다시 시도
+                    </button>
+                    <button onClick={() => router.push('/student/dashboard')}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-50">
+                      대시보드로 돌아가기
+                    </button>
+                  </div>
                 </div>
               ) : questions.length === 0 ? (
-                <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-                  <svg className="h-4 w-4 shrink-0 animate-spin text-amber-500" fill="none" viewBox="0 0 24 24">
+                <div className="mb-5 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <svg className="h-4 w-4 shrink-0 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                   </svg>
-                  <p className="text-sm text-amber-700">AI가 제출한 코드를 분석하여 질문을 생성하고 있습니다...</p>
+                  <p className="text-[13px] text-slate-600">코드를 분석해 질문을 생성하는 중입니다...</p>
                 </div>
               ) : (
-                <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                  <span className="text-emerald-500">✓</span>
-                  <p className="text-sm font-semibold text-emerald-700">AI 질문 준비 완료 — 인터뷰를 시작할 수 있습니다.</p>
+                <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <span className="text-sm font-bold text-emerald-600">✓</span>
+                  <p className="text-[13px] font-semibold text-emerald-700">질문 준비 완료 — 인터뷰를 시작할 수 있습니다.</p>
                 </div>
               )}
 
-              {/* 답변 안내 */}
-              <div className="mb-4 flex items-center gap-3 rounded-xl border border-teal-200 bg-teal-50 px-5 py-3">
-                <span className="text-teal-500 text-lg">💡</span>
-                <p className="text-sm font-semibold text-teal-700">모든 질문은 <span className="font-extrabold">제출한 코드에 기반하여 설명</span>해야 합니다.</p>
-              </div>
-
-              {/* 부정행위 경고 */}
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-base">🚨</span>
-                  <span className="text-sm font-bold text-red-700">인터뷰 부정행위 안내</span>
-                </div>
-                <ul className="space-y-1.5 text-xs text-red-600">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
-                    <span><strong>질문을 소리 내어 읽지 마세요.</strong> 녹음된 음성에서 질문 내용이 감지되면 AI 도구 활용으로 간주됩니다.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
-                    <span>답변 내용이 제출한 코드와 무관하거나 지나치게 정형화된 경우 의심 사례로 분류됩니다.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
-                    <span>모든 이상 패턴(답변 지연, 읽는 말투, 비자연스러운 발화 등)은 AI가 자동으로 분석합니다.</span>
-                  </li>
-                </ul>
-                <div className="mt-3 border-t border-red-200 pt-3">
-                  <p className="mb-2 text-xs font-bold text-red-700">자동 감지 항목 (모두 기록 및 교수자 공개)</p>
-                  <div className="grid grid-cols-2 gap-1.5 text-xs text-red-600">
-                    {[
-                      { icon: '🔀', label: '탭 전환' },
-                      { icon: '🖥', label: '앱 전환 (포커스 이탈)' },
-                      { icon: '🖱', label: '커서 화면 이탈' },
-                      { icon: '🔇', label: '마이크 음소거' },
-                      { icon: '⛶', label: '전체화면 해제' },
-                      { icon: '🔧', label: '개발자 도구 실행' },
-                      { icon: '🔇', label: '장시간 무음 구간' },
-                    ].map(({ icon, label }) => (
-                      <div key={label} className="flex items-center gap-1.5">
-                        <span>{icon}</span>
-                        <span>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-400">테스트 멘트</div>
-                  <div className="text-sm font-medium text-slate-700">"테스트 멘트를 읽어주세요"</div>
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-400">연결 상태</div>
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${micState === 'ready' ? 'bg-green-500' : micState === 'blocked' ? 'bg-red-500' : 'animate-pulse bg-yellow-400'}`} />
-                    <span className="text-sm font-medium text-slate-700">
-                      {micState === 'loading' && '마이크 확인 중...'}
-                      {micState === 'ready' && '마이크 준비 완료'}
-                      {micState === 'blocked' && '마이크 권한 필요'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative mb-6 flex h-28 items-end justify-center overflow-hidden rounded-xl bg-slate-900 p-5">
-                <div className="z-10 flex h-16 w-full items-end justify-center gap-1">
+              {/* 파형 */}
+              <div className="relative mb-4 flex h-24 items-end justify-center overflow-hidden rounded-xl bg-[#0d1117] px-5 pb-4">
+                <div className="flex h-16 w-full items-end justify-center gap-[3px]">
                   {waveformBars.map((bar, i) => (
                     <span
                       key={bar}
                       className="w-1.5 rounded-t-sm transition-all duration-75"
                       style={{
                         height: `${waveHeights[i] ?? 2}px`,
-                        backgroundColor: sttOn ? '#2dd4bf' : '#64748b',
-                        opacity: sttOn ? 1 : 0.5,
+                        backgroundColor: sttOn ? '#2dd4bf' : '#475569',
+                        opacity: sttOn ? 1 : 0.6,
                       }}
                     />
                   ))}
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#2dd4bf]/20 to-transparent opacity-50" />
               </div>
 
-              {/* 다음 버튼 */}
+              {/* 마이크 상태 + 테스트 멘트 */}
+              <div className="mb-6 flex items-center justify-between px-1 py-2">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${
+                    micState === 'ready' ? 'bg-emerald-500' :
+                    micState === 'blocked' ? 'bg-red-500' :
+                    'animate-pulse bg-amber-400'
+                  }`}/>
+                  <span className="text-[13px] text-slate-600">
+                    {micState === 'loading' && '마이크 확인 중...'}
+                    {micState === 'ready' && '마이크 연결됨'}
+                    {micState === 'blocked' && '마이크 권한 필요'}
+                  </span>
+                </div>
+                <span className="text-[12px] italic text-slate-400">"테스트 멘트를 읽어주세요"</span>
+              </div>
+
+              {/* 안내 */}
+              <div className="mb-6 border-t border-slate-100 pt-5">
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">인터뷰 안내</p>
+                <p className="mb-3 text-[13px] text-slate-700">
+                  모든 질문은 <strong>제출한 코드에 기반하여</strong> 설명해야 합니다.
+                </p>
+                <div className="space-y-2 text-[12px] text-slate-500">
+                  {[
+                    '질문을 소리 내어 읽지 마세요 — AI 도구 활용으로 간주됩니다.',
+                    '답변 내용이 코드와 무관하면 의심 사례로 분류됩니다.',
+                    '탭 전환, 커서 이탈, 음소거 등 이상 패턴은 자동으로 기록됩니다.',
+                  ].map((text, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 text-slate-300">–</span>
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-[11px] text-slate-400">
+                  감지 항목: 탭 전환 · 앱 전환 · 커서 이탈 · 음소거 · 전체화면 해제 · 개발자 도구 · 무음 구간
+                </p>
+              </div>
+
               <button
                 onClick={handleSkipMicTest}
                 disabled={questions.length === 0 || pollTimedOut}
-                className={`w-full rounded-xl py-3 text-sm font-bold transition-all ${
+                className={`w-full rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.98] ${
                   questions.length === 0 || pollTimedOut
-                    ? 'cursor-not-allowed bg-slate-200 text-slate-400'
-                    : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-95'
+                    ? 'cursor-not-allowed bg-slate-100 text-slate-400'
+                    : 'bg-[#1a6d7e] text-white hover:bg-teal-800'
                 }`}
               >
                 {questions.length === 0 ? 'AI 질문 생성 중...' : '인터뷰 시작'}
@@ -1291,31 +1302,31 @@ function StudentAssignmentVerifyPage() {
 
           {/* 제출 중 / 완료 — 보안 기록 화면 */}
           {(phase === 'submitting' || phase === 'done') && (
-            <div className="m-auto w-full max-w-xl overflow-y-auto py-2">
+            <div className="m-auto w-full max-w-lg overflow-y-auto py-2">
               {/* 상태 헤더 */}
-              <div className="mb-5 text-center">
+              <div className="mb-6 text-center">
                 {phase === 'submitting' ? (
                   <>
                     <div className="mb-3 flex justify-center">
-                      <svg className="h-8 w-8 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
+                      <svg className="h-8 w-8 animate-spin text-teal-500" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                       </svg>
                     </div>
-                    <h2 className="text-lg font-bold text-white">답변이 제출되었습니다</h2>
-                    <p className="mt-1 text-sm text-slate-400">AI가 답변을 평가하고 있습니다. 창을 닫지 마세요.</p>
+                    <h2 className="text-[20px] font-bold text-slate-900">답변 제출 중</h2>
+                    <p className="mt-1 text-[13px] text-slate-500">AI가 답변을 분석하고 있습니다. 창을 닫지 마세요.</p>
                   </>
                 ) : (
                   <>
                     <div className="mb-3 flex justify-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-500/20">
-                        <svg className="h-6 w-6 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                        <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                         </svg>
                       </div>
                     </div>
-                    <h2 className="text-lg font-bold text-white">검증이 완료되었습니다</h2>
-                    <p className="mt-1 text-sm text-slate-400">모든 답변이 정상적으로 제출되었습니다.</p>
+                    <h2 className="text-[20px] font-bold text-slate-900">검증 완료</h2>
+                    <p className="mt-1 text-[13px] text-slate-500">모든 답변이 정상적으로 제출되었습니다.</p>
                   </>
                 )}
               </div>
@@ -1327,45 +1338,40 @@ function StudentAssignmentVerifyPage() {
                   micMuteCount, fullscreenExitCount, cursorOutCount, totalSilenceCount,
                 });
                 const overallCfg = {
-                  red:    { bg: 'bg-red-950/60',    border: 'border-red-700/60',    dot: 'bg-red-500',    label: '의심',  text: 'text-red-400' },
-                  yellow: { bg: 'bg-amber-950/60',  border: 'border-amber-700/60',  dot: 'bg-amber-400',  label: '주의',  text: 'text-amber-400' },
-                  green:  { bg: 'bg-emerald-950/40', border: 'border-emerald-800/40', dot: 'bg-emerald-500', label: '정상', text: 'text-emerald-400' },
+                  red:    { bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500',     label: '의심', text: 'text-red-600' },
+                  yellow: { bg: 'bg-amber-50',   border: 'border-amber-200',   dot: 'bg-amber-400',   label: '주의', text: 'text-amber-600' },
+                  green:  { bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500', label: '정상', text: 'text-emerald-600' },
                 }[overall];
                 const levelCfg = {
-                  red:    { row: 'border border-red-800/40 bg-red-950/50',      badge: 'bg-red-900/60 text-red-300' },
-                  yellow: { row: 'border border-amber-700/40 bg-amber-950/40',  badge: 'bg-amber-900/60 text-amber-300' },
-                  green:  { row: 'bg-slate-700/40',                             badge: 'bg-slate-600/60 text-slate-400' },
+                  red:    { row: 'border border-red-200 bg-red-50',     badge: 'bg-red-100 text-red-600' },
+                  yellow: { row: 'border border-amber-200 bg-amber-50', badge: 'bg-amber-100 text-amber-600' },
+                  green:  { row: 'bg-slate-50',                         badge: 'bg-slate-100 text-slate-500' },
                 };
                 return (
-                  <div className="rounded-2xl border border-slate-700 bg-slate-800/80 p-5">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
                     {/* 종합 위험도 */}
-                    <div className={`mb-5 flex items-center justify-between rounded-xl border px-5 py-4 ${overallCfg.bg} ${overallCfg.border}`}>
+                    <div className={`mb-4 flex items-center justify-between rounded-lg border px-4 py-3 ${overallCfg.bg} ${overallCfg.border}`}>
                       <div>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">종합 위험도</p>
-                        <p className={`mt-1 text-2xl font-extrabold ${overallCfg.text}`}>{overallCfg.label}</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">종합 위험도</p>
+                        <p className={`mt-0.5 text-[22px] font-extrabold ${overallCfg.text}`}>{overallCfg.label}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`h-3 w-3 rounded-full ${overallCfg.dot}`} />
-                        <span className="text-sm font-bold text-slate-300">
-                          {score} / {MAX_WEIGHTED_SCORE}점
-                        </span>
+                        <span className={`h-2.5 w-2.5 rounded-full ${overallCfg.dot}`}/>
+                        <span className="text-[13px] font-bold text-slate-700">{score} / {MAX_WEIGHTED_SCORE}점</span>
                       </div>
                     </div>
 
-                    <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">항목별 기록</p>
-                    <div className="space-y-2">
+                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-widest text-slate-400">항목별 기록</p>
+                    <div className="space-y-1.5">
                       {items.map((item) => {
                         const cfg = levelCfg[item.level];
                         return (
-                          <div key={item.key} className={`flex items-center justify-between rounded-xl px-4 py-2.5 ${cfg.row}`}>
+                          <div key={item.key} className={`flex items-center justify-between rounded-lg px-4 py-2 ${cfg.row}`}>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-slate-300">{item.label}</span>
-                              {/* 가중치 표시 */}
-                              <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-slate-600/70 text-slate-400">
-                                ×{item.weight}
-                              </span>
+                              <span className="text-[13px] text-slate-700">{item.label}</span>
+                              <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-400">×{item.weight}</span>
                             </div>
-                            <span className={`rounded-lg px-2.5 py-1 text-xs font-bold tabular-nums ${cfg.badge}`}>
+                            <span className={`rounded-md px-2.5 py-0.5 text-[12px] font-bold tabular-nums ${cfg.badge}`}>
                               {item.count}회
                             </span>
                           </div>
@@ -1373,19 +1379,17 @@ function StudentAssignmentVerifyPage() {
                       })}
                     </div>
 
-                    <div className="mt-4 rounded-xl border border-amber-700/40 bg-amber-950/30 px-4 py-3 text-center">
-                      <p className="text-xs text-amber-300">이상현상 발생 시 고객센터로 문의 바랍니다.</p>
-                    </div>
+                    <p className="mt-4 text-center text-[11px] text-slate-400">이상현상 발생 시 고객센터로 문의 바랍니다.</p>
                   </div>
                 );
               })()}
 
               {phase === 'done' && (
                 <button
-                  onClick={() => router.push('/')}
-                  className="mt-4 w-full rounded-xl bg-slate-700 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-600 active:scale-95"
+                  onClick={() => router.push('/student/dashboard')}
+                  className="mt-4 w-full rounded-xl border border-slate-200 bg-white py-3 text-[13px] font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98]"
                 >
-                  처음으로 돌아가기
+                  대시보드로 돌아가기
                 </button>
               )}
             </div>

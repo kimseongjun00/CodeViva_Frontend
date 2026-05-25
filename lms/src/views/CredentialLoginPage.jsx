@@ -15,8 +15,12 @@ const CredentialLoginPage = () => {
     if (!email || !password) return;
     setError('');
     setLoading(true);
+    // 숫자만 입력한 경우 학번으로 간주 → @codeviva.kr 붙임
+    const resolvedEmail = /^\d+$/.test(email.trim())
+      ? `${email.trim()}@codeviva.kr`
+      : email.trim();
     try {
-      const { token } = await login({ email, password });
+      const { token } = await login({ email: resolvedEmail, password });
       const me = await loginWithToken(token);
       // TEACHER/ADMIN → 강사 목록, STUDENT → 학생 목록
       navigate(me.role === 'STUDENT' ? '/student/assignment-list' : '/instructor/assignment-list');
@@ -39,8 +43,8 @@ const CredentialLoginPage = () => {
           <div className="flex-1">
             <input
               className="mb-2 h-8 w-full border border-[#d6d6d6] px-2 text-[12px] text-[#555]"
-              placeholder="이메일"
-              type="email"
+              placeholder="학번 또는 이메일"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={handleKeyDown}

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useId } from 'react';
+import * as XLSX from 'xlsx';
 import { useRouter } from 'next/navigation';
 import {
   getCourses, createCourse,
-  getCourseUsers, enrollStudent, registerStudentGetId, getAllUsers,
+  getCourseUsers, enrollStudent, enrollStudentsBulk, registerStudentGetId, getAllUsers,
   getAssignmentsByCourse, createAssignment, updateAssignment,
   getSubmissionsByAssignment, getAnswersBySubmission, evaluateAssignment,
 } from '../../../lib/api';
@@ -67,20 +68,29 @@ const RISK_CFG = {
 
 /* ─── 학생 등록 탭 ─── */
 function StudentsTab({ courseId }) {
+  const fileInputId = useId();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // 개별 추가
   const [studentId, setStudentId] = useState('');
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [singleError, setSingleError] = useState('');
+  const [singleSuccess, setSingleSuccess] = useState('');
+
+  // 엑셀 일괄 등록
+  const [bulkRows, setBulkRows] = useState(null); // [{studentId, name}] | null
+  const [bulkParseError, setBulkParseError] = useState('');
+  const [bulkProgress, setBulkProgress] = useState(null); // {done, total}
+  const [bulkResults, setBulkResults] = useState(null); // {ok: [], fail: []}
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [list, allUsers] = await Promise.all([
         getCourseUsers(courseId),
-        getAllUsers().catch(() => []), // 실패해도 진행
+        getAllUsers().catch(() => []),
       ]);
       const emailMap = Object.fromEntries((allUsers || []).map((u) => [u.id, u.email ?? '']));
       setStudents(
@@ -100,58 +110,235 @@ function StudentsTab({ courseId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleAdd = async () => {
-    if (!studentId.trim() || !name.trim()) { setError('학번과 이름을 입력해주세요.'); return; }
-    setAdding(true); setError(''); setSuccess('');
+  const registerOne = async ({ studentId: sid, name: n }) => {
+    const { id: userId } = await registerStudentGetId({ studentId: sid.trim(), name: n.trim() });
     try {
-      // 1단계: 학생 계정 생성 (이미 있으면 로그인으로 id 획득)
-      const { id: userId } = await registerStudentGetId({ studentId: studentId.trim(), name: name.trim() });
+      await enrollStudent({ courseId: Number(courseId), userId: Number(userId) });
+    } catch (e) {
+      const code = e?.message;
+      if (code !== '500' && code !== '409') throw e;
+    }
+  };
 
-      // 2단계: 수강 등록
-      try {
-        await enrollStudent({ courseId: Number(courseId), userId: Number(userId) });
-      } catch (e) {
-        const code = e?.message;
-        if (code === '500' || code === '409') {
-          // 이미 등록됨 — 무시하고 성공 처리
-        } else {
-          throw new Error(`수강 등록 실패 (${code}) courseId=${courseId} userId=${userId}`);
-        }
-      }
-
-      setSuccess(`${name} 학생이 등록되었습니다.`);
+  const handleAdd = async () => {
+    if (!studentId.trim() || !name.trim()) { setSingleError('학번과 이름을 입력해주세요.'); return; }
+    setAdding(true); setSingleError(''); setSingleSuccess('');
+    try {
+      await registerOne({ studentId, name });
+      setSingleSuccess(`${name} 학생이 등록되었습니다.`);
       setStudentId(''); setName('');
       await load();
     } catch (e) {
       const msg = e?.message ?? '알 수 없는 오류';
-      if (msg.includes('401')) setError('세션이 만료됐습니다. 다시 로그인해주세요.');
-      else setError(msg);
+      if (msg.includes('401')) setSingleError('세션이 만료됐습니다. 다시 로그인해주세요.');
+      else setSingleError(msg);
     } finally {
       setAdding(false);
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkParseError(''); setBulkRows(null); setBulkResults(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        // 헤더 유연하게 매핑 (학번/학생번호/id, 이름/성명/name)
+        const idKey = Object.keys(raw[0] ?? {}).find((k) =>
+          /학번|학생번호|studentid|id/i.test(k)
+        );
+        const nameKey = Object.keys(raw[0] ?? {}).find((k) =>
+          /이름|성명|name/i.test(k)
+        );
+
+        if (!idKey || !nameKey) {
+          setBulkParseError('엑셀에 "학번"과 "이름" 열이 필요합니다.');
+          return;
+        }
+
+        const rows = raw
+          .map((r) => ({ studentId: String(r[idKey]).trim(), name: String(r[nameKey]).trim() }))
+          .filter((r) => r.studentId && r.name);
+
+        if (rows.length === 0) { setBulkParseError('유효한 데이터가 없습니다.'); return; }
+        setBulkRows(rows);
+      } catch {
+        setBulkParseError('파일을 읽을 수 없습니다. xlsx 또는 csv 파일을 사용해주세요.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  const handleBulkRegister = async () => {
+    if (!bulkRows?.length) return;
+    setBulkProgress({ done: 0, total: bulkRows.length, phase: 'account' });
+    setBulkResults(null);
+    const ok = [], fail = [], userIds = [];
+
+    // 1단계: 계정 생성/조회
+    for (let i = 0; i < bulkRows.length; i++) {
+      const row = bulkRows[i];
+      try {
+        const { id: userId } = await registerStudentGetId({
+          studentId: row.studentId.trim(),
+          name: row.name.trim(),
+        });
+        userIds.push(userId);
+        ok.push(row);
+      } catch (e) {
+        fail.push({ ...row, reason: e?.message ?? '계정 생성 오류' });
+      }
+      setBulkProgress({ done: i + 1, total: bulkRows.length, phase: 'account' });
+    }
+
+    // 2단계: 일괄 수강 등록 (단일 API 호출)
+    if (userIds.length > 0) {
+      setBulkProgress({ done: userIds.length, total: userIds.length, phase: 'enroll' });
+      try {
+        await enrollStudentsBulk({ courseId: Number(courseId), studentIds: userIds });
+      } catch {
+        fail.push(...ok.splice(0).map((r) => ({ ...r, reason: '수강 등록 오류' })));
+      }
+    }
+
+    setBulkResults({ ok, fail });
+    setBulkRows(null);
+    await load();
+  };
+
+  const resetBulk = () => { setBulkRows(null); setBulkResults(null); setBulkParseError(''); };
+
   return (
-    <div>
-      {/* 등록 폼 */}
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-        <h3 className="mb-4 text-sm font-bold text-slate-700">학생 추가</h3>
+    <div className="space-y-6">
+      {/* 개별 추가 */}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <h3 className="mb-4 text-sm font-bold text-slate-700">개별 추가</h3>
         <div className="flex gap-3">
           <input value={studentId} onChange={(e) => setStudentId(e.target.value)}
-            placeholder="학번"
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="학번" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="h-10 w-36 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-teal-500 focus:outline-none" />
           <input value={name} onChange={(e) => setName(e.target.value)}
-            placeholder="이름"
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            placeholder="이름" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-teal-500 focus:outline-none" />
           <button onClick={handleAdd} disabled={adding}
             className="h-10 rounded-xl bg-teal-600 px-5 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-60">
             {adding ? '...' : '등록'}
           </button>
         </div>
-        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
-        {success && <p className="mt-2 text-xs text-teal-600">{success}</p>}
+        {singleError && <p className="mt-2 text-xs text-red-500">{singleError}</p>}
+        {singleSuccess && <p className="mt-2 text-xs text-teal-600">{singleSuccess}</p>}
+      </div>
+
+      {/* 엑셀 일괄 등록 */}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-700">엑셀 일괄 등록</h3>
+          <span className="text-xs text-slate-400">학번 · 이름 열 포함 xlsx/csv</span>
+        </div>
+
+        {!bulkRows && !bulkResults && (
+          <>
+            <label htmlFor={fileInputId}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-white py-6 text-sm text-slate-500 transition hover:border-teal-400 hover:text-teal-600">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+              </svg>
+              파일 선택 (xlsx / csv)
+            </label>
+            <input id={fileInputId} type="file" accept=".xlsx,.xls,.csv"
+              onChange={handleFileChange} className="hidden" />
+            {bulkParseError && <p className="mt-2 text-xs text-red-500">{bulkParseError}</p>}
+          </>
+        )}
+
+        {/* 파싱 미리보기 */}
+        {bulkRows && !bulkProgress && (
+          <div className="space-y-3">
+            <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">학번</th>
+                    <th className="px-3 py-2 text-left">이름</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {bulkRows.map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5 text-slate-400">{i + 1}</td>
+                      <td className="px-3 py-1.5 font-mono text-slate-600">{r.studentId}</td>
+                      <td className="px-3 py-1.5 font-semibold text-slate-800">{r.name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">총 {bulkRows.length}명</span>
+              <div className="flex gap-2">
+                <button onClick={resetBulk}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                  취소
+                </button>
+                <button onClick={handleBulkRegister}
+                  className="h-9 rounded-xl bg-teal-600 px-5 text-xs font-bold text-white hover:bg-teal-700">
+                  일괄 등록 ({bulkRows.length}명)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 진행 중 */}
+        {bulkProgress && !bulkResults && (
+          <div className="space-y-2 py-2">
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>{bulkProgress.phase === 'enroll' ? '수강 등록 중...' : '계정 생성 중...'}</span>
+              <span>{bulkProgress.done} / {bulkProgress.total}</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-2 rounded-full bg-teal-500 transition-all"
+                style={{ width: `${(bulkProgress.done / bulkProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 결과 */}
+        {bulkResults && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-xs">
+              <span className="font-semibold text-teal-600">성공 {bulkResults.ok.length}명</span>
+              {bulkResults.fail.length > 0 && (
+                <span className="font-semibold text-red-500">실패 {bulkResults.fail.length}명</span>
+              )}
+            </div>
+            {bulkResults.fail.length > 0 && (
+              <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+                <p className="mb-1 text-xs font-semibold text-red-600">등록 실패 목록</p>
+                {bulkResults.fail.map((f, i) => (
+                  <p key={i} className="text-xs text-red-500">
+                    {f.studentId} {f.name} — {f.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+            <button onClick={resetBulk}
+              className="mt-1 text-xs text-slate-400 underline underline-offset-2">
+              닫기
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 학생 목록 */}
@@ -160,7 +347,7 @@ function StudentsTab({ courseId }) {
       ) : students.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 py-14 text-center text-slate-400">
           <p className="text-sm">등록된 학생이 없습니다.</p>
-          <p className="mt-1 text-xs text-slate-300">학번과 이름을 입력해 학생을 추가하세요.</p>
+          <p className="mt-1 text-xs text-slate-300">학번과 이름을 입력하거나 엑셀 파일을 업로드하세요.</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -176,9 +363,7 @@ function StudentsTab({ courseId }) {
               {students.map((s, i) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                    {s.studentIdNum}
-                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{s.studentIdNum}</td>
                   <td className="px-4 py-3 font-semibold text-slate-800">{s.userName}</td>
                 </tr>
               ))}
@@ -202,6 +387,7 @@ function AssignmentsTab({ courseId }) {
   const defaultOpenAt = () => toLocal(new Date(Date.now() - 10 * 60 * 1000)); // 10분 전
   const defaultDueAt = () => toLocal(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)); // 2주 후
   const [form, setForm] = useState({
+    number: '',
     title: '',
     description: '',
     openAt: defaultOpenAt(),
@@ -210,13 +396,13 @@ function AssignmentsTab({ courseId }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const [attachment, setAttachment] = useState(null);
+  const [editAttachment, setEditAttachment] = useState(null);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -229,29 +415,27 @@ function AssignmentsTab({ courseId }) {
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const handleCreate = async () => {
+    if (!form.number.trim()) { setError('문제 번호를 입력해주세요.'); return; }
     if (!form.title.trim()) { setError('과제명을 입력해주세요.'); return; }
     if (!form.openAt || !form.dueAt) { setError('공개일과 마감일을 입력해주세요.'); return; }
+    const fullTitle = `${form.number.trim()}. ${form.title.trim()}`;
     setSaving(true); setError('');
     try {
       await createAssignment({
         courseId,
-        title: form.title.trim(),
+        title: fullTitle,
         description: form.description.trim() || undefined,
         openAt: new Date(form.openAt).toISOString().slice(0, 19),
         dueAt: new Date(form.dueAt).toISOString().slice(0, 19),
         score: Number(form.score) || 100,
+        attachment: attachment ?? undefined,
       });
-      setForm({ title: '', description: '', openAt: '', dueAt: '', score: '100' });
+      setForm({ number: '', title: '', description: '', openAt: defaultOpenAt(), dueAt: defaultDueAt(), score: '100' });
+      setAttachment(null);
       setShowForm(false);
       await load();
     } catch { setError('과제 출제에 실패했습니다.'); }
     finally { setSaving(false); }
-  };
-
-  const copyLink = (id) => {
-    navigator.clipboard.writeText(`${origin}/submit?assignmentId=${id}`);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
   };
 
   const startEdit = (a) => {
@@ -262,6 +446,8 @@ function AssignmentsTab({ courseId }) {
     };
     setEditingId(a.id);
     setEditForm({ title: a.title, description: a.description ?? '', openAt: toLocal(a.openAt), dueAt: toLocal(a.dueAt), score: String(a.score ?? 100) });
+    setEditAttachment(null);
+    setRemoveAttachment(false);
     setEditError('');
   };
 
@@ -276,8 +462,12 @@ function AssignmentsTab({ courseId }) {
         openAt: new Date(editForm.openAt).toISOString().slice(0, 19),
         dueAt: new Date(editForm.dueAt).toISOString().slice(0, 19),
         score: Number(editForm.score) || 100,
+        attachment: editAttachment ?? undefined,
+        removeAttachment: removeAttachment || undefined,
       });
       setEditingId(null);
+      setEditAttachment(null);
+      setRemoveAttachment(false);
       await load();
     } catch (e) {
       setEditError(`수정 실패 (${e?.message}) — 백엔드 오류일 수 있습니다.`);
@@ -302,9 +492,20 @@ function AssignmentsTab({ courseId }) {
           <h3 className="mb-4 text-sm font-bold text-slate-700">새 과제</h3>
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600">과제명 *</label>
-              <input value={form.title} onChange={set('title')} placeholder="예) 버블 정렬 구현"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-teal-500 focus:outline-none" />
+              <label className="mb-1 block text-xs font-semibold text-slate-600">문제 번호 · 과제명 *</label>
+              <div className="flex items-center gap-2">
+                <input
+                  value={form.number} onChange={set('number')}
+                  placeholder="1"
+                  className="h-10 w-16 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-center text-sm font-bold focus:border-teal-500 focus:outline-none"
+                />
+                <span className="text-sm font-bold text-slate-400">.</span>
+                <input
+                  value={form.title} onChange={set('title')}
+                  placeholder="예) 스택 구현하기"
+                  className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-teal-500 focus:outline-none"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600">과제 설명</label>
@@ -329,10 +530,21 @@ function AssignmentsTab({ courseId }) {
               <input type="number" value={form.score} onChange={set('score')}
                 className="h-10 w-28 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-teal-500 focus:outline-none" />
             </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">첨부파일 (PDF)</label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-500 transition hover:border-teal-400 hover:text-teal-600">
+                <span>📎</span>
+                <span className="truncate">{attachment ? attachment.name : 'PDF 파일 선택 (선택사항)'}</span>
+                <input type="file" accept=".pdf" className="hidden" onChange={(e) => setAttachment(e.target.files?.[0] ?? null)} />
+              </label>
+              {attachment && (
+                <button onClick={() => setAttachment(null)} className="mt-1 text-xs text-slate-400 hover:text-red-500">× 파일 제거</button>
+              )}
+            </div>
           </div>
           {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
           <div className="mt-4 flex gap-3">
-            <button onClick={() => { setShowForm(false); setError(''); }}
+            <button onClick={() => { setShowForm(false); setAttachment(null); setError(''); }}
               className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
               취소
             </button>
@@ -355,7 +567,6 @@ function AssignmentsTab({ courseId }) {
       ) : (
         <div className="space-y-3">
           {assignments.map((a) => {
-            const link = `${origin}/submit?assignmentId=${a.id}`;
             const now = new Date();
             const open = new Date(a.openAt);
             const due = new Date(a.dueAt);
@@ -363,15 +574,15 @@ function AssignmentsTab({ courseId }) {
             const statusCls = status === '진행중' ? 'text-teal-600 bg-teal-50' : 'text-slate-400 bg-slate-100';
 
             return (
-              <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div key={a.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 {editingId === a.id ? (
                   /* 수정 폼 */
                   <div className="space-y-3">
                     <input value={editForm.title} onChange={(e) => setEditForm(p => ({ ...p, title: e.target.value }))}
-                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 focus:border-[#1a6d7e] focus:outline-none" />
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 focus:border-[#146E7A] focus:outline-none" />
                     <textarea value={editForm.description} onChange={(e) => setEditForm(p => ({ ...p, description: e.target.value }))}
                       rows={2} placeholder="설명"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 resize-none focus:border-[#1a6d7e] focus:outline-none" />
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 resize-none focus:border-[#146E7A] focus:outline-none" />
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="mb-1 block text-xs text-slate-500">공개일</label>
@@ -386,12 +597,35 @@ function AssignmentsTab({ courseId }) {
                     </div>
                     <input type="number" value={editForm.score} onChange={(e) => setEditForm(p => ({ ...p, score: e.target.value }))}
                       placeholder="배점" className="h-10 w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 focus:outline-none" />
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-500">첨부파일 (PDF)</label>
+                      {a.attachmentDownloadUrl && !removeAttachment && (
+                        <div className="mb-1.5 flex items-center gap-2 text-xs text-slate-500">
+                          <span>현재: <a href={a.attachmentDownloadUrl} target="_blank" rel="noopener noreferrer" className="text-[#146E7A] underline">첨부된 PDF</a></span>
+                          <button type="button" onClick={() => setRemoveAttachment(true)} className="text-red-400 hover:text-red-600">삭제</button>
+                        </div>
+                      )}
+                      {removeAttachment && (
+                        <div className="mb-1.5 flex items-center gap-2 text-xs text-red-500">
+                          <span>기존 파일이 삭제됩니다.</span>
+                          <button type="button" onClick={() => setRemoveAttachment(false)} className="text-slate-400 hover:text-slate-600">취소</button>
+                        </div>
+                      )}
+                      <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2.5 text-xs text-slate-400 transition hover:border-teal-400">
+                        <span>📎</span>
+                        <span className="truncate">{editAttachment ? editAttachment.name : '새 PDF 파일 선택 (선택사항)'}</span>
+                        <input type="file" accept=".pdf" className="hidden" onChange={(e) => setEditAttachment(e.target.files?.[0] ?? null)} />
+                      </label>
+                      {editAttachment && (
+                        <button type="button" onClick={() => setEditAttachment(null)} className="mt-1 text-xs text-slate-400 hover:text-red-500">× 파일 제거</button>
+                      )}
+                    </div>
                     {editError && <p className="text-xs text-red-500">{editError}</p>}
                     <div className="flex gap-2">
-                      <button onClick={() => setEditingId(null)}
+                      <button onClick={() => { setEditingId(null); setEditAttachment(null); setRemoveAttachment(false); }}
                         className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">취소</button>
                       <button onClick={() => handleUpdate(a.id)} disabled={editSaving}
-                        className="rounded-xl bg-[#1a6d7e] px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-60">
+                        className="rounded-xl bg-[#146E7A] px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-60">
                         {editSaving ? '저장 중...' : '저장'}
                       </button>
                     </div>
@@ -401,9 +635,15 @@ function AssignmentsTab({ courseId }) {
                   <>
                     <div className="mb-3 flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-base font-bold text-slate-900">{a.title}</span>
                           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusCls}`}>{status}</span>
+                          {a.attachmentDownloadUrl && (
+                            <a href={a.attachmentDownloadUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-slate-400 hover:text-slate-600">
+                              📎 {a.attachmentOriginalName || 'PDF'}
+                            </a>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-slate-400">
                           {new Date(a.openAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -415,13 +655,6 @@ function AssignmentsTab({ courseId }) {
                       <button onClick={() => startEdit(a)}
                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50">
                         수정
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
-                      <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs text-slate-600">{link}</code>
-                      <button onClick={() => copyLink(a.id)}
-                        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition ${copied === a.id ? 'bg-teal-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-700'}`}>
-                        {copied === a.id ? '복사됨 ✓' : '복사'}
                       </button>
                     </div>
                   </>
@@ -771,6 +1004,16 @@ function ResultsTab({ courseId }) {
                                       </summary>
                                       <div className="border-t border-slate-100 px-4 py-3 space-y-2">
                                         <p className="text-xs font-medium leading-relaxed text-slate-700">{ans.questionText}</p>
+                                        {ans.audioDownloadUrl && (
+                                          <div className="rounded-lg bg-slate-50 p-2.5">
+                                            <p className="mb-1.5 text-[11px] font-semibold text-slate-500">음성 답변</p>
+                                            <audio
+                                              controls
+                                              src={ans.audioDownloadUrl}
+                                              className="h-8 w-full"
+                                            />
+                                          </div>
+                                        )}
                                         {ans.summary && (
                                           <div className="rounded-lg bg-slate-50 p-2.5">
                                             <p className="text-[11px] font-semibold text-slate-500">요약</p>
@@ -887,7 +1130,7 @@ export default function ProfessorDashboard() {
 
   if (initializing) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-[#f0f0ee]">
         <p className="text-sm text-slate-400">초기화 중...</p>
       </div>
     );
@@ -900,41 +1143,43 @@ export default function ProfessorDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* 네비 */}
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen bg-[#f0f0ee]">
+      {/* 네비 — HUFS Navy */}
+      <div className="bg-[#002D56] shadow-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <a href="/" className="text-xl font-extrabold text-[#1a6d7e]">
-              Code<span className="text-slate-800">Viva</span>
+            <a href="/" className="text-xl font-extrabold text-white">
+              Code<span className="text-[#6EC6CF]">Viva</span>
             </a>
             {user && (
-              <span className="text-sm text-slate-500">{user.name} 교수님</span>
+              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-sm font-medium text-blue-100">{user.name} 교수님</span>
             )}
           </div>
-          <button onClick={logout} className="text-xs text-slate-400 hover:text-slate-600">로그아웃</button>
+          <button onClick={logout} className="text-xs text-blue-200 hover:text-white transition-colors">로그아웃</button>
         </div>
       </div>
 
-      <div className="mx-auto max-w-4xl px-6 py-8">
-        {/* 탭 */}
-        <div className="mb-6 flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${tab === t.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 탭 콘텐츠 */}
-        {course && (
-          <div>
-            {tab === 'students'    && <StudentsTab courseId={course.id} />}
-            {tab === 'assignments' && <AssignmentsTab courseId={course.id} />}
-            {tab === 'results'     && <ResultsTab courseId={course.id} />}
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {/* 탭 */}
+          <div className="flex border-b border-slate-200 bg-slate-50 px-2">
+            {TABS.map((t) => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`px-5 py-3.5 text-sm font-semibold transition-colors border-b-2 -mb-px ${tab === t.id ? 'border-[#146E7A] text-[#146E7A] bg-white rounded-t-lg' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                {t.label}
+              </button>
+            ))}
           </div>
-        )}
+
+          {/* 탭 콘텐츠 */}
+          {course && (
+            <div className="p-6">
+              {tab === 'students'    && <StudentsTab courseId={course.id} />}
+              {tab === 'assignments' && <AssignmentsTab courseId={course.id} />}
+              {tab === 'results'     && <ResultsTab courseId={course.id} />}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

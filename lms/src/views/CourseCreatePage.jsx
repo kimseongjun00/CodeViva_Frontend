@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useId } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCourse } from '../context/CourseContext';
 import { createCourse } from '../api/courses';
-import { createCourseUser } from '../api/courseUsers';
-import { getAllUsers } from '../api/auth';
+import { createCourseUser, enrollStudentsBulk } from '../api/courseUsers';
+import { registerStudentGetId } from '../api/auth';
+import * as XLSX from 'xlsx';
 import Header from '../components/eclass/Header';
 import GlobalNav from '../components/eclass/GlobalNav';
 import MainLayout from '../components/eclass/MainLayout';
@@ -19,18 +20,7 @@ const SEMESTERS = [
   { value: 'WINTER', label: '겨울학기' },
 ];
 
-const ROLE_OPTIONS = [
-  { value: 'STUDENT', label: '학생' },
-  { value: 'TA', label: 'TA' },
-  { value: 'TEACHER', label: '교수' },
-];
 
-const ROLE_BADGE = {
-  TEACHER: 'bg-purple-100 text-purple-700',
-  TA: 'bg-blue-100 text-blue-700',
-  STUDENT: 'bg-green-100 text-green-700',
-  ADMIN: 'bg-red-100 text-red-700',
-};
 
 /* ──────────────────────────────────────────────────────────
    Step indicator
@@ -122,7 +112,7 @@ const Step1CourseForm = ({ onCreated }) => {
         </div>
         <div className="border-b border-gray-300 px-3 py-2">
           <input
-            className="h-8 w-full border border-gray-300 px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none"
+            className="h-8 w-full rounded-sm border border-gray-300 px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none"
             placeholder="예) 게임프로그래밍"
             value={form.name}
             onChange={handleChange('name')}
@@ -135,7 +125,7 @@ const Step1CourseForm = ({ onCreated }) => {
         <div className="border-b border-gray-300 px-3 py-2">
           <input
             type="number"
-            className="h-8 w-[110px] border border-gray-300 px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none"
+            className="h-8 w-[110px] rounded-sm border border-gray-300 px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none"
             value={form.year}
             onChange={handleChange('year')}
             min={2020}
@@ -179,7 +169,7 @@ const Step1CourseForm = ({ onCreated }) => {
         <button
           onClick={handleSubmit}
           disabled={saving}
-          className="rounded bg-[#1a6d7e] px-8 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800 disabled:opacity-60"
+          className="rounded-sm bg-[#1a6d7e] px-8 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800 disabled:opacity-60"
         >
           {saving ? '개설 중...' : '과목 개설 →'}
         </button>
@@ -192,244 +182,207 @@ const Step1CourseForm = ({ onCreated }) => {
    Step 2 – 수강생 등록
 ────────────────────────────────────────────────────────── */
 const Step2EnrollUsers = ({ course, onDone }) => {
-  const { user: me } = useAuth();
+  const fileInputId = useId();
 
-  const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [registered, setRegistered] = useState([]); // { studentId, name }
+  const [studentId, setStudentId] = useState('');
+  const [name, setName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [singleMsg, setSingleMsg] = useState({ type: '', text: '' });
 
-  // checked: { [userId]: courseRole }
-  const [checked, setChecked] = useState({});
-  const [enrolling, setEnrolling] = useState(false);
-  const [error, setError] = useState('');
-  const [enrollResults, setEnrollResults] = useState(null); // null | { ok: [], fail: [] }
+  const [bulkRows, setBulkRows] = useState(null);
+  const [bulkParseError, setBulkParseError] = useState('');
+  const [bulkProgress, setBulkProgress] = useState(null);
+  const [bulkResults, setBulkResults] = useState(null);
 
-  useEffect(() => {
-    getAllUsers()
-      .then((all) => setUsers(all.filter((u) => u.id !== me?.id)))
-      .catch(() => setError('사용자 목록을 불러오지 못했습니다.'))
-      .finally(() => setLoadingUsers(false));
-  }, [me?.id]);
+  const registerStudentOnly = async ({ studentId: sid, name: n }) => {
+    const { id: userId } = await registerStudentGetId({ studentId: sid.trim(), name: n.trim() });
+    return { userId: Number(userId), studentId: sid.trim(), name: n.trim() };
+  };
 
-  const filtered = users.filter((u) => {
-    const matchSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter === 'ALL' || u.role === roleFilter;
-    return matchSearch && matchRole;
-  });
-
-  const toggleUser = (userId) => {
-    setChecked((prev) => {
-      if (prev[userId] !== undefined) {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
+  const handleAdd = async () => {
+    if (!studentId.trim() || !name.trim()) { setSingleMsg({ type: 'error', text: '학번과 이름을 입력해주세요.' }); return; }
+    setAdding(true); setSingleMsg({ type: '', text: '' });
+    try {
+      const { userId, ...row } = await registerStudentOnly({ studentId, name });
+      try {
+        await createCourseUser({ courseId: course.id, userId, courseRole: 'STUDENT' });
+      } catch (e) {
+        if (e?.message !== '500' && e?.message !== '409') throw e;
       }
-      return { ...prev, [userId]: 'STUDENT' };
-    });
-  };
-
-  const setUserRole = (userId, role) => {
-    setChecked((prev) => ({ ...prev, [userId]: role }));
-  };
-
-  const selectAll = () => {
-    const next = {};
-    filtered.forEach((u) => {
-      next[u.id] = checked[u.id] ?? 'STUDENT';
-    });
-    setChecked((prev) => ({ ...prev, ...next }));
-  };
-
-  const clearAll = () => {
-    const ids = new Set(filtered.map((u) => u.id));
-    setChecked((prev) => {
-      const next = { ...prev };
-      ids.forEach((id) => delete next[id]);
-      return next;
-    });
-  };
-
-  const checkedCount = Object.keys(checked).length;
-  const allFilteredChecked =
-    filtered.length > 0 && filtered.every((u) => checked[u.id] !== undefined);
-
-  const handleEnroll = async () => {
-    if (checkedCount === 0) {
-      setError('등록할 수강생을 선택해주세요.');
-      return;
+      setRegistered((p) => [...p, row]);
+      setSingleMsg({ type: 'ok', text: `${name} 학생이 등록되었습니다.` });
+      setStudentId(''); setName('');
+    } catch (e) {
+      setSingleMsg({ type: 'error', text: e?.message ?? '오류가 발생했습니다.' });
+    } finally {
+      setAdding(false);
     }
-    setEnrolling(true);
-    setError('');
-    const ok = [];
-    const fail = [];
-    await Promise.allSettled(
-      Object.entries(checked).map(([userId, courseRole]) =>
-        createCourseUser({ courseId: course.id, userId: Number(userId), courseRole })
-          .then((res) => ok.push(res))
-          .catch(() => {
-            const u = users.find((x) => x.id === Number(userId));
-            fail.push(u?.name ?? userId);
-          }),
-      ),
-    );
-    setEnrolling(false);
-    setEnrollResults({ ok, fail });
   };
 
-  // 등록 완료 결과 화면
-  if (enrollResults) {
-    return (
-      <div className="text-center py-4">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-teal-50 mx-auto">
-          <span className="text-3xl">✅</span>
-        </div>
-        <h3 className="mb-2 text-base font-bold text-slate-800">수강 등록 완료</h3>
-        <p className="text-sm text-slate-500 mb-6">
-          성공 <strong className="text-teal-600">{enrollResults.ok.length}명</strong>
-          {enrollResults.fail.length > 0 && (
-            <> · 실패 <strong className="text-red-500">{enrollResults.fail.length}명</strong>
-              <span className="text-xs text-red-400"> ({enrollResults.fail.join(', ')})</span>
-            </>
-          )}
-        </p>
-        <button
-          onClick={onDone}
-          className="rounded bg-[#1a6d7e] px-8 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800"
-        >
-          완료 →
-        </button>
-      </div>
-    );
-  }
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkParseError(''); setBulkRows(null); setBulkResults(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const idKey = Object.keys(raw[0] ?? {}).find((k) => /학번|학생번호|studentid|id/i.test(k));
+        const nameKey = Object.keys(raw[0] ?? {}).find((k) => /이름|성명|name/i.test(k));
+        if (!idKey || !nameKey) { setBulkParseError('"학번"과 "이름" 열이 필요합니다.'); return; }
+        const rows = raw
+          .map((r) => ({ studentId: String(r[idKey]).trim(), name: String(r[nameKey]).trim() }))
+          .filter((r) => r.studentId && r.name);
+        if (!rows.length) { setBulkParseError('유효한 데이터가 없습니다.'); return; }
+        setBulkRows(rows);
+      } catch { setBulkParseError('파일을 읽을 수 없습니다.'); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  const handleBulkRegister = async () => {
+    if (!bulkRows?.length) return;
+    setBulkProgress({ done: 0, total: bulkRows.length, phase: 'account' });
+    setBulkResults(null);
+    const ok = [], fail = [];
+    const userIds = [];
+
+    for (let i = 0; i < bulkRows.length; i++) {
+      try {
+        const { userId, ...row } = await registerStudentOnly(bulkRows[i]);
+        userIds.push(userId);
+        ok.push(row);
+      } catch (e) {
+        fail.push({ ...bulkRows[i], reason: e?.message ?? '오류' });
+      }
+      setBulkProgress({ done: i + 1, total: bulkRows.length, phase: 'account' });
+    }
+
+    if (userIds.length > 0) {
+      setBulkProgress({ done: userIds.length, total: userIds.length, phase: 'enroll' });
+      try {
+        await enrollStudentsBulk({ courseId: course.id, studentIds: userIds });
+      } catch {
+        fail.push(...ok.splice(0));
+      }
+    }
+
+    setRegistered((p) => [...p, ...ok]);
+    setBulkResults({ ok, fail });
+    setBulkRows(null);
+  };
 
   return (
-    <div>
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h3 className="text-base font-bold text-slate-700">수강생 선택</h3>
-          <p className="mt-0.5 text-xs text-slate-400">
-            과목: <strong>{course.name}</strong> (ID: {course.id})
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-sm font-bold text-[#1a6d7e]">{checkedCount}명 선택됨</div>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-bold text-slate-700">수강생 등록</h3>
+        <p className="mt-0.5 text-xs text-slate-400">과목: <strong>{course.name}</strong> (ID: {course.id})</p>
       </div>
 
-      {/* 검색 + 필터 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          placeholder="이름 또는 이메일 검색"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-8 flex-1 border border-gray-300 px-2.5 text-xs focus:border-[#1a6d7e] focus:outline-none min-w-[160px]"
-        />
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="h-8 border border-gray-300 px-2 text-xs focus:outline-none"
-        >
-          <option value="ALL">전체 역할</option>
-          <option value="STUDENT">학생</option>
-          <option value="TEACHER">교수</option>
-          <option value="ADMIN">관리자</option>
-        </select>
-        <button
-          onClick={allFilteredChecked ? clearAll : selectAll}
-          className="h-8 rounded border border-[#1a6d7e] px-3 text-xs font-bold text-[#1a6d7e] hover:bg-teal-50"
-        >
-          {allFilteredChecked ? '전체 해제' : '전체 선택'}
-        </button>
+      {/* 개별 추가 */}
+      <div className="rounded border border-slate-200 bg-slate-50 p-4">
+        <p className="mb-2 text-xs font-bold text-slate-600">개별 추가</p>
+        <div className="flex gap-2">
+          <input value={studentId} onChange={(e) => setStudentId(e.target.value)}
+            placeholder="학번" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            className="h-9 w-36 rounded-sm border border-gray-300 bg-white px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none" />
+          <input value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="이름" onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+            className="h-9 flex-1 rounded-sm border border-gray-300 bg-white px-2.5 text-sm focus:border-[#1a6d7e] focus:outline-none" />
+          <button onClick={handleAdd} disabled={adding}
+            className="rounded-sm bg-[#1a6d7e] px-5 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60">
+            {adding ? '...' : '추가'}
+          </button>
+        </div>
+        {singleMsg.text && (
+          <p className={`mt-1.5 text-xs ${singleMsg.type === 'ok' ? 'text-[#1a6d7e]' : 'text-red-500'}`}>{singleMsg.text}</p>
+        )}
       </div>
 
-      {/* 사용자 목록 테이블 */}
-      {loadingUsers ? (
-        <div className="py-8 text-center text-xs text-gray-400">불러오는 중...</div>
-      ) : (
-        <div className="overflow-hidden rounded border border-[#d3d3d3]">
-          <table className="w-full text-left text-[11px]">
-            <thead className="bg-[#7f7f7f] text-white">
-              <tr>
-                <th className="w-10 px-3 py-2 text-center font-normal">선택</th>
-                <th className="px-3 py-2 font-normal">이름</th>
-                <th className="px-3 py-2 font-normal">이메일</th>
-                <th className="w-20 px-3 py-2 font-normal text-center">시스템 역할</th>
-                <th className="w-28 px-3 py-2 font-normal text-center">수강 역할 지정</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#e8e8e8] bg-white">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-gray-400">
-                    검색 결과가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((u) => {
-                  const isChecked = checked[u.id] !== undefined;
-                  return (
-                    <tr
-                      key={u.id}
-                      className={`cursor-pointer transition-colors ${isChecked ? 'bg-teal-50' : 'hover:bg-gray-50'}`}
-                      onClick={() => toggleUser(u.id)}
-                    >
-                      <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleUser(u.id)}
-                          className="h-3.5 w-3.5 accent-[#1a6d7e] cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-3 py-2.5 font-semibold text-slate-800">{u.name}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{u.email}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${ROLE_BADGE[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-                        {isChecked ? (
-                          <select
-                            value={checked[u.id]}
-                            onChange={(e) => setUserRole(u.id, e.target.value)}
-                            className="h-6 rounded border border-gray-300 px-1 text-[10px] focus:outline-none accent-[#1a6d7e]"
-                          >
-                            {ROLE_OPTIONS.map(({ value, label }) => (
-                              <option key={value} value={value}>{label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+      {/* 엑셀 일괄 */}
+      <div className="rounded border border-slate-200 bg-slate-50 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-600">엑셀 일괄 등록</p>
+          <span className="text-[11px] text-gray-400">학번·이름 열 포함 xlsx/csv</span>
+        </div>
+        {!bulkRows && !bulkResults && (
+          <>
+            <label htmlFor={fileInputId}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded border-2 border-dashed border-slate-300 bg-white py-4 text-xs text-slate-500 hover:border-[#1a6d7e] hover:text-[#1a6d7e]">
+              파일 선택 (xlsx / csv)
+            </label>
+            <input id={fileInputId} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" />
+            {bulkParseError && <p className="mt-1 text-xs text-red-500">{bulkParseError}</p>}
+          </>
+        )}
+        {bulkRows && !bulkProgress && (
+          <div className="space-y-2">
+            <div className="max-h-36 overflow-y-auto rounded border border-gray-200 bg-white text-xs">
+              {bulkRows.map((r, i) => (
+                <div key={i} className="flex gap-4 border-b border-gray-100 px-3 py-1.5 last:border-0">
+                  <span className="text-gray-400">{i + 1}</span>
+                  <span className="font-mono text-gray-600">{r.studentId}</span>
+                  <span className="font-semibold text-gray-800">{r.name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">총 {bulkRows.length}명</span>
+              <div className="flex gap-2">
+                <button onClick={() => setBulkRows(null)} className="rounded-sm border border-gray-300 bg-white px-3 py-1 text-xs text-gray-600 hover:bg-gray-50">취소</button>
+                <button onClick={handleBulkRegister} className="rounded-sm bg-[#1a6d7e] px-4 py-1 text-xs font-bold text-white hover:bg-teal-800">
+                  일괄 등록 ({bulkRows.length}명)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {bulkProgress && !bulkResults && (
+          <div className="space-y-1 py-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>{bulkProgress.phase === 'enroll' ? '수강 등록 중...' : '계정 생성 중...'}</span><span>{bulkProgress.done} / {bulkProgress.total}</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-gray-200">
+              <div className="h-1.5 rounded-full bg-[#1a6d7e] transition-all"
+                style={{ width: `${(bulkProgress.done / bulkProgress.total) * 100}%` }} />
+            </div>
+          </div>
+        )}
+        {bulkResults && (
+          <div className="text-xs">
+            <span className="font-semibold text-[#1a6d7e]">성공 {bulkResults.ok.length}명</span>
+            {bulkResults.fail.length > 0 && <span className="ml-2 font-semibold text-red-500">실패 {bulkResults.fail.length}명</span>}
+            <button onClick={() => setBulkResults(null)} className="ml-2 text-gray-400 underline">닫기</button>
+          </div>
+        )}
+      </div>
+
+      {/* 등록된 학생 목록 */}
+      {registered.length > 0 && (
+        <div className="rounded border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-2 text-xs font-bold text-slate-600">
+            이번 세션 등록 완료 ({registered.length}명)
+          </div>
+          <div className="max-h-40 overflow-y-auto divide-y divide-slate-100">
+            {registered.map((r, i) => (
+              <div key={i} className="flex gap-4 px-4 py-2 text-xs">
+                <span className="text-gray-400">{i + 1}</span>
+                <span className="font-mono text-gray-600">{r.studentId}</span>
+                <span className="font-semibold text-gray-800">{r.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
-
-      <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
-        <span className="text-xs text-slate-400">
-          {checkedCount > 0
-            ? `${checkedCount}명이 선택되었습니다.`
-            : '등록할 수강생을 체크박스로 선택하세요.'}
-        </span>
-        <button
-          onClick={handleEnroll}
-          disabled={enrolling || checkedCount === 0}
-          className="rounded bg-[#1a6d7e] px-8 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {enrolling ? '등록 중...' : `수강 등록 (${checkedCount}명)`}
+      <div className="flex justify-end border-t border-slate-100 pt-5">
+        <button onClick={onDone}
+          className="rounded-sm bg-[#1a6d7e] px-8 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800">
+          {registered.length > 0 ? `완료 (${registered.length}명 등록됨) →` : '건너뛰기 →'}
         </button>
       </div>
     </div>
@@ -472,7 +425,7 @@ const Step3Done = ({ course, navigate, selectCourse }) => {
         </button>
         <button
           onClick={handleGoToCourse}
-          className="rounded bg-[#1a6d7e] px-6 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800"
+          className="rounded-sm bg-[#1a6d7e] px-6 py-2.5 text-sm font-bold text-white shadow hover:bg-teal-800"
         >
           과제 관리 바로가기 →
         </button>
@@ -505,9 +458,9 @@ const CourseCreatePage = () => {
   const sidebar = <Sidebar currentPath={location.pathname} />;
 
   return (
-    <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[20px] leading-[28px] text-[#666666]">
-      <div className="absolute top-0 left-0 z-0 h-52 w-full bg-gradient-to-b from-[#767676] to-[#a7a7a7]" />
-      <div className="relative z-10 mx-auto w-full max-w-[1330px] px-6 pt-14">
+    <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[12px] leading-[17px] text-[#666666]">
+      <div className="absolute top-0 left-0 z-0 h-[400px] w-full bg-gradient-to-b from-[#8a8a8a] via-[#c4c4c4] to-[#efefef]" />
+      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-6 pt-14">
         <Header messageCount={0} checkCount={0} bellCount={0} />
         <GlobalNav />
         <MainLayout sidebar={sidebar}>

@@ -46,10 +46,22 @@ export const createCourse = ({ name, year, semester }) =>
 export const getCourseUsers = (courseId) =>
   client(`/course-users/course/${courseId}`);
 
+export const getCourseUsersAsStudent = (courseId) =>
+  studentClient(`/course-users/course/${courseId}`);
+
+export const getUserById = (userId) =>
+  studentClient(`/users/${userId}`);
+
 export const enrollStudent = ({ courseId, userId }) =>
   client('/course-users', {
     method: 'POST',
     body: JSON.stringify({ courseId, userId, courseRole: 'STUDENT' }),
+  });
+
+export const enrollStudentsBulk = ({ courseId, studentIds }) =>
+  client('/course-users/students/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ courseId, studentIds }),
   });
 
 // ── 학생 계정 자동 생성 + userId 반환
@@ -85,7 +97,7 @@ export const registerStudentGetId = async ({ name, studentId }) => {
 export const getAssignmentsByCourse = (courseId) =>
   client(`/assignments/course/${courseId}`);
 
-export const updateAssignment = ({ id, title, description, openAt, dueAt, score }) => {
+export const updateAssignment = ({ id, title, description, openAt, dueAt, score, attachment, removeAttachment }) => {
   const form = new FormData();
   form.append('id', id);
   if (title)       form.append('title', title);
@@ -93,10 +105,12 @@ export const updateAssignment = ({ id, title, description, openAt, dueAt, score 
   if (dueAt)       form.append('dueAt', dueAt);
   if (score != null) form.append('score', score);
   if (description != null) form.append('description', description);
+  if (attachment)  form.append('attachment', attachment);
+  if (removeAttachment != null) form.append('removeAttachment', String(removeAttachment));
   return client('/assignments', { method: 'PUT', body: form });
 };
 
-export const createAssignment = ({ courseId, title, description, openAt, dueAt, score }) => {
+export const createAssignment = ({ courseId, title, description, openAt, dueAt, score, attachment }) => {
   const form = new FormData();
   form.append('courseId', courseId);
   form.append('title', title);
@@ -104,6 +118,7 @@ export const createAssignment = ({ courseId, title, description, openAt, dueAt, 
   form.append('dueAt', dueAt);
   if (description) form.append('description', description);
   if (score != null) form.append('score', score);
+  if (attachment)  form.append('attachment', attachment);
   return client('/assignments', { method: 'POST', body: form });
 };
 
@@ -149,6 +164,17 @@ export const getSubmission = (id) => {
 };
 
 export const getMySubmissions = () => studentClient('/submissions/my');
+
+export const getStudentCourses = () => studentClient('/courses');
+
+export const getStudentAssignmentsByCourse = (courseId) =>
+  studentClient(`/assignments/course/${courseId}`);
+
+export const changeStudentPassword = ({ currentPassword, newPassword }) =>
+  studentClient('/users/me/password', {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
 
 export const getSubmissionsByAssignment = (assignmentId) =>
   client(`/submissions/assignment/${assignmentId}`);

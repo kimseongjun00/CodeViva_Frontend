@@ -3,7 +3,7 @@ import React from 'react';
 const Footer = () => {
   return (
     <footer
-      className="border-x border-b border-[#5a5a5a] bg-[#565656] px-6 py-9 text-[11px] text-[#cfcfcf] shadow-[0_-1px_0_rgba(255,255,255,0.08)_inset]"
+      className="border-x border-b border-[#6a6a6a] bg-[#6a6a6a] px-6 py-9 text-[11px] text-[#cfcfcf] shadow-[0_-1px_0_rgba(255,255,255,0.08)_inset]"
       style={{ borderBottomLeftRadius: '62% 40px', borderBottomRightRadius: '62% 40px' }}
     >
       <div className="flex justify-between gap-8">

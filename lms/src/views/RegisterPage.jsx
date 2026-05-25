@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const RegisterPage = () => {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState('');
@@ -15,8 +15,8 @@ const RegisterPage = () => {
 
   const validate = () => {
     if (!name.trim()) return '이름을 입력해주세요.';
-    if (!email.trim()) return '이메일을 입력해주세요.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return '올바른 이메일 형식이 아닙니다.';
+    if (!studentId.trim()) return '학번을 입력해주세요.';
+    if (!/^\d{6,12}$/.test(studentId.trim())) return '학번은 숫자 6~12자리로 입력해주세요.';
     if (!password) return '비밀번호를 입력해주세요.';
     if (password.length < 6) return '비밀번호는 6자 이상이어야 합니다.';
     if (password !== passwordConfirm) return '비밀번호가 일치하지 않습니다.';
@@ -31,6 +31,7 @@ const RegisterPage = () => {
     }
     setError('');
     setLoading(true);
+    const email = `${studentId.trim()}@codeviva.kr`;
     try {
       const { token } = await register({ name, email, password });
       const me = await loginWithToken(token);
@@ -38,7 +39,7 @@ const RegisterPage = () => {
     } catch (err) {
       const status = err?.message;
       if (status === '409') {
-        setError('이미 사용 중인 이메일입니다.');
+        setError('이미 등록된 학번입니다. 로그인해주세요.');
       } else {
         setError('회원가입에 실패했습니다. 다시 시도해주세요.');
       }
@@ -79,17 +80,21 @@ const RegisterPage = () => {
             />
           </div>
 
-          {/* 이메일 */}
+          {/* 학번 */}
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-[#555]">이메일</label>
+            <label className="mb-1 block text-[11px] font-bold text-[#555]">학번</label>
             <input
               className="h-8 w-full border border-[#d6d6d6] px-2 text-[12px] text-[#555] focus:border-[#a58d6f] focus:outline-none"
-              placeholder="example@university.ac.kr"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="20230001"
+              type="text"
+              inputMode="numeric"
+              value={studentId}
+              onChange={(e) => setStudentId(e.target.value)}
               onKeyDown={handleKeyDown}
             />
+            {studentId && (
+              <p className="mt-0.5 text-[10px] text-[#6e6e6e]">로그인 ID: {studentId}@codeviva.kr</p>
+            )}
           </div>
 
           {/* 비밀번호 */}

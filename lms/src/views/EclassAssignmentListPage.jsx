@@ -27,9 +27,9 @@ const EclassAssignmentListPage = ({ role }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[20px] leading-[28px] text-[#666666]">
-      <div className="absolute top-0 left-0 z-0 h-52 w-full bg-gradient-to-b from-[#767676] to-[#a7a7a7]" />
-      <div className="relative z-10 mx-auto w-full max-w-[1330px] px-6 pt-14">
+    <div className="min-h-screen bg-[#efefef] font-['malgun_gothic','Apple_SD_Gothic_Neo',arial,sans-serif] text-[12px] leading-[17px] text-[#666666]">
+      <div className="absolute top-0 left-0 z-0 h-[400px] w-full bg-gradient-to-b from-[#8a8a8a] via-[#c4c4c4] to-[#efefef]" />
+      <div className="relative z-10 mx-auto w-full max-w-[1100px] px-6 pt-14">
         <Header messageCount={0} checkCount={0} bellCount={0} />
         <GlobalNav />
         <MainLayout sidebar={<Sidebar currentPath={currentPath} />}>
