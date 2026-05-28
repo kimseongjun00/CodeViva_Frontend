@@ -10,6 +10,9 @@ export const getMe = () => apiClient('/users/me');
 
 export const getAllUsers = () => apiClient('/users/all');
 
+export const changePassword = ({ currentPassword, newPassword }) =>
+  apiClient('/users/me/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+
 // 학번으로 학생 계정 생성(또는 기존 계정 조회) → userId 반환
 export const registerStudentGetId = async ({ studentId, name }) => {
   const email = `${studentId}@codeviva.kr`;

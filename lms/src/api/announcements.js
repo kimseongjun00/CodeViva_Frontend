@@ -1,5 +1,11 @@
 import { apiClient } from './client';
 
+export const getAnnouncementsByCourse = (courseId) =>
+  apiClient(`/announcements/course/${courseId}`);
+
+export const getAnnouncement = (announcementId) =>
+  apiClient(`/announcements/${announcementId}`);
+
 export const createAnnouncement = ({ courseId, title, content }) =>
   apiClient('/announcements', { method: 'POST', body: JSON.stringify({ courseId, title, content }) });
 

@@ -2321,11 +2321,8 @@ const SubmissionDashboard = ({
                             </div>
 
                             {!answers || answers.length === 0 ? (
-                              <div className="flex flex-col items-center gap-2 py-6 text-center text-slate-400">
-                                <span className="text-3xl">🎤</span>
-                                <span className="text-sm">
-                                  {answers === undefined ? '검증 데이터를 불러오는 중...' : '음성 검증 답변 데이터가 없습니다.'}
-                                </span>
+                              <div className="py-6 text-center text-sm text-slate-400">
+                                {answers === undefined ? '검증 데이터를 불러오는 중...' : '음성 검증 답변 데이터가 없습니다.'}
                               </div>
                             ) : (
                               <>

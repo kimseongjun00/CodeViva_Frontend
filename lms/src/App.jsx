@@ -15,6 +15,7 @@ import {
   StudentAssignmentSubmitPage,
   StudentAssignmentVerifyPage,
 } from './views/AssignmentFlowPages';
+import { AnnouncementListPage, AnnouncementDetailPage } from './views/AnnouncementPages';
 import SubmitPage from './views/mvp/SubmitPage';
 import AdminDashboardPage from './views/mvp/AdminDashboardPage';
 
@@ -133,6 +134,24 @@ const App = () => {
             <CourseStudentManagePage />
           </ProtectedRoute>
         }
+      />
+
+      {/* 공지사항 */}
+      <Route
+        path="/instructor/announcements"
+        element={<ProtectedRoute><AnnouncementListPage role="instructor" /></ProtectedRoute>}
+      />
+      <Route
+        path="/instructor/announcement-detail"
+        element={<ProtectedRoute><AnnouncementDetailPage role="instructor" /></ProtectedRoute>}
+      />
+      <Route
+        path="/student/announcements"
+        element={<ProtectedRoute><AnnouncementListPage role="student" /></ProtectedRoute>}
+      />
+      <Route
+        path="/student/announcement-detail"
+        element={<ProtectedRoute><AnnouncementDetailPage role="student" /></ProtectedRoute>}
       />
 
       {/* 구 URL 호환 리다이렉트 */}

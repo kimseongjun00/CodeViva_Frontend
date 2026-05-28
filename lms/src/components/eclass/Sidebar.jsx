@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCourse } from '../../context/CourseContext';
+import { changePassword } from '../../api/auth';
 
 const SEMESTER_KO = { SPRING: '1학기', SUMMER: '여름학기', FALL: '2학기', WINTER: '겨울학기' };
 
@@ -11,12 +12,46 @@ const Sidebar = ({ currentPath }) => {
   const navigate = useNavigate();
   const [courseOpen, setCourseOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState({});
+  const [showPwModal, setShowPwModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
 
   const isInstructor = user?.role === 'TEACHER' || user?.role === 'ADMIN';
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const openPwModal = () => {
+    setPwForm({ current: '', next: '', confirm: '' });
+    setPwError('');
+    setPwSuccess(false);
+    setShowPwModal(true);
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwForm.current) { setPwError('현재 비밀번호를 입력해주세요.'); return; }
+    if (!pwForm.next) { setPwError('새 비밀번호를 입력해주세요.'); return; }
+    if (pwForm.next.length < 6) { setPwError('새 비밀번호는 6자 이상이어야 합니다.'); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwError('새 비밀번호가 일치하지 않습니다.'); return; }
+    setPwError('');
+    setPwLoading(true);
+    try {
+      await changePassword({ currentPassword: pwForm.current, newPassword: pwForm.next });
+      setPwSuccess(true);
+    } catch (e) {
+      const status = e?.message;
+      if (status === '400' || status === '401') {
+        setPwError('현재 비밀번호가 올바르지 않습니다.');
+      } else {
+        setPwError('비밀번호 변경에 실패했습니다. 다시 시도해주세요.');
+      }
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   const handleChangeCourse = () => {
@@ -33,7 +68,7 @@ const Sidebar = ({ currentPath }) => {
   const STUDENT_MENUS = [
     { label: '강의계획서', path: null },
     { label: '온라인강의', path: null },
-    { label: '공지사항', path: null },
+    { label: '공지사항', path: '/student/announcements' },
     { label: '질의응답', path: null },
     { label: '강의자료', path: null },
     { label: '출석', path: null },
@@ -50,10 +85,10 @@ const Sidebar = ({ currentPath }) => {
   const INSTRUCTOR_MENUS = [
     { label: '강의계획서', path: null },
     { label: '온라인강의', path: null },
-    { label: '공지사항', path: null },
     { label: '질의응답', path: null },
     { label: '강의자료', path: null },
     { label: '출석', path: null },
+    { label: '공지사항', path: '/instructor/announcements' },
     { label: '과제', path: '/instructor/assignment-list', sub: [
       { label: '과제 출제', path: '/instructor/assignment-create' },
     ]},
@@ -70,6 +105,7 @@ const Sidebar = ({ currentPath }) => {
   const HOME_MENUS = [
     { label: '개설 과목', path: '/courses' },
     ...(isInstructor ? [{ label: '과목 개설', path: '/courses/create' }] : []),
+    { label: '비밀번호 변경', path: null, action: openPwModal },
     { label: '로그아웃', path: null, action: handleLogout },
   ];
 
@@ -258,6 +294,61 @@ const Sidebar = ({ currentPath }) => {
           <span className="mr-1 text-[6px]">▶</span> 열린게시판
         </div>
       </div>
+
+      {/* 비밀번호 변경 모달 */}
+      {showPwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[340px] border-[3px] border-[#a58d6f] bg-white px-5 pt-5 pb-4 shadow-lg font-['Dotum','Apple_SD_Gothic_Neo',sans-serif]">
+            <h3 className="border-b border-[#d8d8d8] pb-2 text-[18px] font-bold text-[#2d2d2d]">비밀번호 변경</h3>
+            {pwSuccess ? (
+              <div className="mt-4 space-y-3 text-center">
+                <p className="text-[13px] text-[#1a6d7e]">비밀번호가 변경되었습니다.</p>
+                <button
+                  onClick={() => setShowPwModal(false)}
+                  className="mt-1 h-8 w-full bg-gradient-to-b from-[#2d5c90] to-[#0c2f59] text-[12px] font-bold text-white"
+                >
+                  닫기
+                </button>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {[
+                  { label: '현재 비밀번호', key: 'current' },
+                  { label: '새 비밀번호', key: 'next' },
+                  { label: '새 비밀번호 확인', key: 'confirm' },
+                ].map(({ label, key }) => (
+                  <div key={key}>
+                    <label className="mb-0.5 block text-[11px] font-bold text-[#555]">{label}</label>
+                    <input
+                      className="h-7 w-full border border-[#d6d6d6] bg-[#ecf4ff] px-2 text-[12px] focus:border-[#a58d6f] focus:outline-none"
+                      type="password"
+                      value={pwForm[key]}
+                      onChange={(e) => setPwForm((p) => ({ ...p, [key]: e.target.value }))}
+                      onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
+                    />
+                  </div>
+                ))}
+                {pwError && <p className="text-[11px] text-red-500">{pwError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setShowPwModal(false)}
+                    className="flex-1 h-8 border border-[#d6d6d6] text-[12px] text-gray-600 hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleChangePassword}
+                    disabled={pwLoading}
+                    className="flex-1 h-8 bg-gradient-to-b from-[#2d5c90] to-[#0c2f59] text-[12px] font-bold text-white disabled:opacity-60"
+                  >
+                    {pwLoading ? '변경 중...' : '변경'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

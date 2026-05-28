@@ -1,5 +1,8 @@
 import { apiClient } from './client';
 
+export const getCommentsByAnnouncement = (announcementId) =>
+  apiClient(`/announcement-comments/announcement/${announcementId}`);
+
 export const createAnnouncementComment = ({ announcementId, content }) =>
   apiClient('/announcement-comments', { method: 'POST', body: JSON.stringify({ announcementId, content }) });
 

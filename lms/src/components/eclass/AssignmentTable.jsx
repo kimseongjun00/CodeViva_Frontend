@@ -23,18 +23,12 @@ const formatDate = (iso) => {
 
 const getStatus = (openAt, dueAt) => {
   const now = new Date();
-  if (openAt && new Date(openAt) > now) return { label: '예정', cls: 'text-gray-400' };
-  if (dueAt && new Date(dueAt) < now) return { label: '종료', cls: 'text-gray-400' };
-  return { label: '진행중', cls: 'font-bold text-[#1a6d7e]' };
+  if (openAt && new Date(openAt) > now) return '예정';
+  if (dueAt && new Date(dueAt) < now) return '종료';
+  return '진행중';
 };
 
-const GRADE_LABEL = {
-  GRADE_1: { label: 'A', cls: 'bg-emerald-100 text-emerald-700' },
-  GRADE_2: { label: 'B', cls: 'bg-teal-100 text-teal-700' },
-  GRADE_3: { label: 'C', cls: 'bg-yellow-100 text-yellow-700' },
-  GRADE_4: { label: 'D', cls: 'bg-orange-100 text-orange-700' },
-  GRADE_5: { label: 'F', cls: 'bg-red-100 text-red-700' },
-};
+const GRADE_LABEL = { GRADE_1: 'A', GRADE_2: 'B', GRADE_3: 'C', GRADE_4: 'D', GRADE_5: 'F' };
 
 const AssignmentTable = ({ role }) => {
   const { user } = useAuth();
@@ -43,7 +37,7 @@ const AssignmentTable = ({ role }) => {
 
   const isInstructor = role === 'instructor';
   const [assignments, setAssignments] = useState([]);
-  const [submissionMap, setSubmissionMap] = useState({}); // assignmentId → submission
+  const [submissionMap, setSubmissionMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -101,7 +95,6 @@ const AssignmentTable = ({ role }) => {
 
   return (
     <div>
-      {/* 페이지 헤더 */}
       <div className="mb-4 flex items-end justify-between border-b border-[#dfdfdf] pb-2">
         <h2 className="text-[26px] leading-none font-bold text-[#5a5a5a]">과제</h2>
         <div className="flex items-center gap-1 text-sm text-gray-500">
@@ -113,7 +106,6 @@ const AssignmentTable = ({ role }) => {
         </div>
       </div>
 
-      {/* 검색 + 출제 버튼 */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex flex-1 justify-center">
           <div className="flex w-[360px]">
@@ -122,97 +114,81 @@ const AssignmentTable = ({ role }) => {
               placeholder="검색"
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full rounded-l border border-r-0 border-gray-300 px-3 py-1.5 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full border border-r-0 border-gray-300 px-3 py-1.5 text-xs focus:border-gray-500 focus:outline-none"
             />
-            <button className="rounded-r bg-[#555] px-5 py-1.5 text-sm font-bold text-white">search</button>
+            <button className="bg-[#555] px-5 py-1.5 text-xs font-bold text-white">search</button>
           </div>
         </div>
         {isInstructor && (
           <Link
             to="/instructor/assignment-create"
-            className="rounded-sm bg-[#4d4d4d] px-4 py-1.5 text-sm font-bold text-white"
+            className="rounded-sm bg-[#4d4d4d] px-4 py-1.5 text-xs font-bold text-white"
           >
             과제 출제
           </Link>
         )}
       </div>
 
-      {loading && <div className="py-12 text-center text-sm text-gray-400">불러오는 중...</div>}
-      {error && <div className="py-6 text-center text-xs text-red-500">{error}</div>}
+      {loading && <div className="py-12 text-center text-xs text-gray-400">불러오는 중...</div>}
+      {error && <div className="py-6 text-center text-xs text-red-400">{error}</div>}
 
       {!loading && !error && (
-        <div className="overflow-hidden rounded border border-[#d3d3d3]">
-        <table className="w-full border-t-2 border-[#7f7f7f] text-center text-[13px]">
-          <thead className="bg-[#cccccc]">
-            <tr className="border-b border-[#d3d3d3]">
-              <th className="w-10 py-2 font-bold text-gray-600">번호</th>
-              <th className="w-8 py-2 font-bold text-gray-600">중요</th>
-              <th className="px-3 py-2 text-left font-bold text-gray-600">제목</th>
-              <th className="w-16 py-2 font-bold text-gray-600">진행</th>
-              <th className="w-14 py-2 font-bold text-gray-600">제출</th>
-              <th className="w-14 py-2 font-bold text-gray-600">점수</th>
-              <th className="w-14 py-2 font-bold text-gray-600">배점</th>
-              <th className="w-36 py-2 font-bold text-gray-600">마감일</th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-700">
-            {paged.length === 0 ? (
+        <div className="overflow-hidden border border-[#d3d3d3]">
+          <table className="w-full border-t-2 border-[#7f7f7f] text-center text-[12px]">
+            <thead className="bg-[#8c8c8c] text-white">
               <tr>
-                <td colSpan={8} className="py-8 text-gray-400">
-                  {assignments.length === 0 ? '등록된 과제가 없습니다.' : '검색 결과가 없습니다.'}
-                </td>
+                <th className="w-10 py-2.5 font-bold">번호</th>
+                <th className="px-3 py-2.5 text-left font-bold">제목</th>
+                <th className="w-16 py-2.5 font-bold">진행</th>
+                <th className="w-14 py-2.5 font-bold">제출</th>
+                <th className="w-14 py-2.5 font-bold">등급</th>
+                <th className="w-14 py-2.5 font-bold">배점</th>
+                <th className="w-36 py-2.5 font-bold">마감일</th>
               </tr>
-            ) : (
-              paged.map((assignment, idx) => {
-                const globalIdx = filtered.length - ((currentPage - 1) * PAGE_SIZE + idx);
-                const status = getStatus(assignment.openAt, assignment.dueAt);
-                const sub = submissionMap[assignment.id];
-                const gradeInfo = sub?.grade ? GRADE_LABEL[sub.grade] : null;
+            </thead>
+            <tbody className="text-gray-500">
+              {paged.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-gray-400">
+                    {assignments.length === 0 ? '등록된 과제가 없습니다.' : '검색 결과가 없습니다.'}
+                  </td>
+                </tr>
+              ) : (
+                paged.map((assignment, idx) => {
+                  const globalIdx = filtered.length - ((currentPage - 1) * PAGE_SIZE + idx);
+                  const status = getStatus(assignment.openAt, assignment.dueAt);
+                  const sub = submissionMap[assignment.id];
+                  const grade = sub?.grade ? GRADE_LABEL[sub.grade] : null;
 
-                return (
-                  <tr
-                    key={assignment.id}
-                    className="cursor-pointer border-b border-[#e2e2e2] hover:bg-[#f0f7f9]"
-                    onClick={() => handleRowClick(assignment.id)}
-                  >
-                    <td className="py-2.5">{globalIdx}</td>
-                    <td className="py-2.5 text-gray-300">-</td>
-                    <td className="px-3 py-2.5 text-left">
-                      <div className="truncate font-semibold text-[#333]">{assignment.title}</div>
-                      <div className="mt-0.5 text-[11px] text-gray-400">온라인</div>
-                    </td>
-                    <td className={`py-2.5 ${status.cls}`}>{status.label}</td>
-                    <td className="py-2.5">
-                      {isInstructor ? (
-                        <span className="text-gray-400">-</span>
-                      ) : sub ? (
-                        <span className="rounded px-2 py-0.5 text-[11px] font-bold bg-[#e8f4f7] text-[#1a6d7e]">제출</span>
-                      ) : (
-                        <span className="text-gray-300">미제출</span>
-                      )}
-                    </td>
-                    <td className="py-2.5">
-                      {isInstructor ? (
-                        <span className="text-gray-400">비공개</span>
-                      ) : gradeInfo ? (
-                        <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${gradeInfo.cls}`}>
-                          {gradeInfo.label}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-2.5">
-                      {assignment.score != null ? assignment.score : '-'}
-                    </td>
-                    <td className="py-2.5 text-gray-600">{formatDate(assignment.dueAt)}</td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                  return (
+                    <tr
+                      key={assignment.id}
+                      className="cursor-pointer border-b border-[#e2e2e2] hover:bg-[#f5f5f5]"
+                      onClick={() => handleRowClick(assignment.id)}
+                    >
+                      <td className="py-2.5 text-gray-400">{globalIdx}</td>
+                      <td className="px-3 py-2.5 text-left">
+                        <span className="text-gray-700">{assignment.title}</span>
+                        <span className="ml-2 text-[11px] text-gray-400">온라인</span>
+                      </td>
+                      <td className="py-2.5">{status}</td>
+                      <td className="py-2.5">
+                        {isInstructor ? '-' : sub ? '제출' : '미제출'}
+                      </td>
+                      <td className="py-2.5">
+                        {isInstructor ? '-' : grade ?? '-'}
+                      </td>
+                      <td className="py-2.5">
+                        {assignment.score != null ? assignment.score : '-'}
+                      </td>
+                      <td className="py-2.5">{formatDate(assignment.dueAt)}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
       )}
     </div>
