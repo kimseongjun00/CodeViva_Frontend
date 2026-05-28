@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createSubmission, getMySubmissions, getSubmission } from '../../lib/api';
+import { createSubmission, getSubmission } from '../../lib/api';
 
 const apiClient = async (path, token) => {
   const res = await fetch(`/api${path}`, {
@@ -71,7 +71,7 @@ function SubmitInner() {
       setLoadingAssignment(true);
       Promise.all([
         apiClient(`/assignments/${assignmentId}`, token),
-        getMySubmissions().catch(() => []),
+        apiClient('/submissions/my', token).catch(() => []),
       ]).then(async ([a, subs]) => {
         setAssignment(a);
         const existing = subs.find((s) => String(s.assignmentId) === String(assignmentId));

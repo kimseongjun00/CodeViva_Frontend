@@ -691,11 +691,14 @@ function ResultsTab({ courseId }) {
   };
 
   useEffect(() => {
-    getAssignmentsByCourse(courseId).then(setAssignments);
+    getAssignmentsByCourse(courseId).then((list) => {
+      setAssignments(list);
+      if (list.length > 0) loadResults(list[list.length - 1]);
+    });
     getAllUsers().then((users) => {
       setEmailMap(Object.fromEntries(users.map((u) => [u.id, u.email ?? ''])));
     }).catch(() => {});
-  }, [courseId]);
+  }, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshSubmissions = useCallback(async (assignmentId) => {
     try {
