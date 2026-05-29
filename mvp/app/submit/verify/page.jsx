@@ -192,6 +192,7 @@ function StudentAssignmentVerifyPage() {
   const [micState, setMicState] = useState('loading');
   const [submitting, setSubmitting] = useState(false);
   const [submittingText, setSubmittingText] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [answerElapsed, setAnswerElapsed] = useState(0);
@@ -256,7 +257,7 @@ function StudentAssignmentVerifyPage() {
 
     let cancelled = false;
     let pollCount = 0;
-    const MAX_POLLS = 40; // 3초 × 40 = 2분
+    const MAX_POLLS = 40; // 1.5초 × 40 = 60초
 
     const poll = async () => {
       try {
@@ -735,7 +736,6 @@ function StudentAssignmentVerifyPage() {
     try {
       const audioFiles = questions.map((_, i) => {
         const blob = recordedAudiosRef.current[i];
-        console.log(`[CodeViva] Q${i+1} blob:`, blob?.size ?? 0, 'bytes');
         return blob ?? new Blob([], { type: 'audio/webm' });
       });
       await saveBatchAnswers({
@@ -754,7 +754,7 @@ function StudentAssignmentVerifyPage() {
         },
       });
     } catch (e) {
-      console.error('[CodeViva] 음성 답변 제출 실패:', e?.message, e?.body);
+      setSubmitError('답변 제출에 실패했습니다. 네트워크 상태를 확인하거나 담당 교수님께 문의하세요.');
     } finally {
       // 부정행위 로그 콘솔 출력 (백엔드 연동 시 별도 API로 전송)
       console.info('[CodeViva Security Log]', {
@@ -1129,14 +1129,14 @@ function StudentAssignmentVerifyPage() {
 
               <button
                 onClick={handleSkipMicTest}
-                disabled={questions.length === 0 || pollTimedOut}
+                disabled={questions.length === 0 || pollTimedOut || micState === 'blocked'}
                 className={`w-full rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.98] ${
-                  questions.length === 0 || pollTimedOut
+                  questions.length === 0 || pollTimedOut || micState === 'blocked'
                     ? 'cursor-not-allowed bg-slate-100 text-slate-400'
                     : 'bg-[#1a6d7e] text-white hover:bg-teal-800'
                 }`}
               >
-                {questions.length === 0 ? 'AI 질문 생성 중...' : '인터뷰 시작'}
+                {questions.length === 0 ? 'AI 질문 생성 중...' : micState === 'blocked' ? '마이크 권한 필요' : '인터뷰 시작'}
               </button>
             </div>
           )}
@@ -1333,8 +1333,10 @@ function StudentAssignmentVerifyPage() {
                         </svg>
                       </div>
                     </div>
-                    <h2 className="text-[20px] font-bold text-slate-900">검증 완료</h2>
-                    <p className="mt-1 text-[13px] text-slate-500">모든 답변이 정상적으로 제출되었습니다.</p>
+                    <h2 className="text-[20px] font-bold text-slate-900">{submitError ? '제출 오류' : '검증 완료'}</h2>
+                    <p className="mt-1 text-[13px] text-slate-500">
+                      {submitError ? submitError : '모든 답변이 정상적으로 제출되었습니다.'}
+                    </p>
                   </>
                 )}
               </div>

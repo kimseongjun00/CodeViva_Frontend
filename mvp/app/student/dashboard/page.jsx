@@ -110,8 +110,8 @@ export default function StudentDashboard() {
 
         {sections.length === 0 && !error ? (
           <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white py-16 text-center shadow-sm">
-            <p className="text-sm font-medium text-slate-500">수강 중인 과목이 없습니다.</p>
-            <p className="mt-1 text-xs text-slate-400">교수님께 수강 등록을 요청하세요.</p>
+            <p className="text-sm font-medium text-slate-500">등록된 과제가 없습니다.</p>
+            <p className="mt-1 text-xs text-slate-400">교수님이 과제를 등록하면 여기에 표시됩니다.</p>
           </div>
         ) : (
           sections.map(({ course, assignments }) => (
