@@ -49,9 +49,9 @@ export default function ChangePasswordPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6 py-14">
       <div className="w-full max-w-[360px]">
-        <div className="mb-8 text-[17px] font-extrabold tracking-tight text-slate-900">
+        <a href="/" className="mb-8 block text-[17px] font-extrabold tracking-tight text-slate-900 hover:opacity-70 transition-opacity">
           Code<span className="text-[#1a6d7e]">Viva</span>
-        </div>
+        </a>
 
         <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-600">
           초기 비밀번호 변경 필요

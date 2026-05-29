@@ -97,6 +97,9 @@ export const registerStudentGetId = async ({ name, studentId }) => {
 export const getAssignmentsByCourse = (courseId) =>
   client(`/assignments/course/${courseId}`);
 
+export const deleteAssignment = (id) =>
+  client(`/assignments/${id}`, { method: 'DELETE' });
+
 export const updateAssignment = ({ id, title, description, openAt, dueAt, score, attachment, removeAttachment }) => {
   const form = new FormData();
   form.append('id', id);

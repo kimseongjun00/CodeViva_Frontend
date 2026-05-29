@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   getCourses, createCourse,
   getCourseUsers, enrollStudent, enrollStudentsBulk, registerStudentGetId, getAllUsers,
-  getAssignmentsByCourse, createAssignment, updateAssignment,
+  getAssignmentsByCourse, createAssignment, updateAssignment, deleteAssignment,
   getSubmissionsByAssignment, getAnswersBySubmission, evaluateAssignment,
 } from '../../../lib/api';
 
@@ -438,6 +438,14 @@ function AssignmentsTab({ courseId }) {
     finally { setSaving(false); }
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('과제를 삭제하시겠습니까?')) return;
+    try {
+      await deleteAssignment(id);
+      await load();
+    } catch { alert('삭제에 실패했습니다.'); }
+  };
+
   const startEdit = (a) => {
     const toLocal = (iso) => {
       if (!iso) return '';
@@ -652,10 +660,16 @@ function AssignmentsTab({ courseId }) {
                           {a.score != null && ` · ${a.score}점`}
                         </p>
                       </div>
-                      <button onClick={() => startEdit(a)}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50">
-                        수정
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => startEdit(a)}
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50">
+                          수정
+                        </button>
+                        <button onClick={() => handleDelete(a.id)}
+                          className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-50">
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}

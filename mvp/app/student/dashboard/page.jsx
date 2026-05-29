@@ -86,9 +86,9 @@ export default function StudentDashboard() {
       <header className="bg-[#002D56] shadow-md">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <span className="text-[17px] font-extrabold tracking-tight text-white">
+            <a href="/" className="text-[17px] font-extrabold tracking-tight text-white hover:opacity-80 transition-opacity">
               Code<span className="text-[#6EC6CF]">Viva</span>
-            </span>
+            </a>
             {user && (
               <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[12px] font-medium text-blue-100">
                 {user.name}
