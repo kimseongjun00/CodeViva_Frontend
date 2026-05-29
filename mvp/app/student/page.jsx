@@ -47,9 +47,9 @@ export default function StudentLogin() {
       {/* 좌: 브랜드 패널 */}
       <div className="hidden flex-col justify-between bg-[#0b3d47] px-12 py-14 lg:flex lg:w-[400px] xl:w-[440px]">
         <div>
-          <div className="text-[22px] font-extrabold tracking-tight text-white">
+          <a href="/" className="text-[22px] font-extrabold tracking-tight text-white hover:opacity-80 transition-opacity">
             Code<span className="text-[#4ecbdb]">Viva</span>
-          </div>
+          </a>
           <p className="mt-1.5 text-[12px] text-teal-300/60">학생 포털</p>
         </div>
 
@@ -87,9 +87,9 @@ export default function StudentLogin() {
       {/* 우: 폼 */}
       <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 py-14">
         <div className="w-full max-w-[340px]">
-          <p className="mb-8 text-lg font-extrabold tracking-tight text-slate-900 lg:hidden">
+          <a href="/" className="mb-8 block text-lg font-extrabold tracking-tight text-slate-900 hover:opacity-70 transition-opacity lg:hidden">
             Code<span className="text-[#1a6d7e]">Viva</span>
-          </p>
+          </a>
 
           <h1 className="text-[22px] font-bold tracking-tight text-slate-900">학생 로그인</h1>
           <p className="mt-1 text-[13px] text-slate-400">학번과 비밀번호로 접속하세요.</p>

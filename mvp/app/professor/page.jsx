@@ -64,9 +64,9 @@ export default function ProfessorAuth() {
       {/* ── 좌: 브랜드 패널 ── */}
       <div className="hidden flex-col justify-between bg-[#0b3d47] px-12 py-14 lg:flex lg:w-[400px] xl:w-[440px]">
         <div>
-          <div className="text-[22px] font-extrabold tracking-tight text-white">
+          <a href="/" className="text-[22px] font-extrabold tracking-tight text-white hover:opacity-80 transition-opacity">
             Code<span className="text-[#4ecbdb]">Viva</span>
-          </div>
+          </a>
           <p className="mt-1.5 text-[12px] text-teal-300/60">교수자 관리 포털</p>
         </div>
 
@@ -108,9 +108,9 @@ export default function ProfessorAuth() {
         <div className="w-full max-w-[340px]">
 
           {/* 모바일 로고 */}
-          <p className="mb-8 text-lg font-extrabold tracking-tight text-slate-900 lg:hidden">
+          <a href="/" className="mb-8 block text-lg font-extrabold tracking-tight text-slate-900 hover:opacity-70 transition-opacity lg:hidden">
             Code<span className="text-[#1a6d7e]">Viva</span>
-          </p>
+          </a>
 
           {/* 헤딩 */}
           <h1 className="text-[22px] font-bold tracking-tight text-slate-900">
