@@ -100,7 +100,7 @@ export default function ProfessorAuth() {
           </div>
         </div>
 
-        <p className="text-[11px] text-teal-400/30">© 2025 CodeViva</p>
+        <p className="text-[11px] text-teal-400/30">© 2026 CodeViva</p>
       </div>
 
       {/* ── 우: 폼 ── */}

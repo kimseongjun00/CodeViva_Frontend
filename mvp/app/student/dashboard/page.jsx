@@ -116,16 +116,9 @@ export default function StudentDashboard() {
         ) : (
           sections.map(({ course, assignments }) => (
             <section key={course.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              {/* 과목 헤더 — HUFS Navy 틴트 */}
+              {/* 과목 헤더 */}
               <div className="border-b border-slate-200 bg-[#002D56]/[0.05] px-6 py-4">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-[#002D56]/60">
-                  {[
-                    course.year && `${course.year}년`,
-                    course.semester && `${course.semester}학기`,
-                    course.instructorName && `· ${course.instructorName} 교수`,
-                  ].filter(Boolean).join(' ')}
-                </p>
-                <h2 className="mt-1 text-[15px] font-bold tracking-tight text-[#002D56]">
+                <h2 className="text-[15px] font-bold tracking-tight text-[#002D56]">
                   {course.name}
                 </h2>
               </div>

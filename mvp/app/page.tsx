@@ -5,9 +5,9 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-white">
       {/* 헤더 */}
       <header className="border-b border-slate-100 px-8 py-5">
-        <span className="text-xl font-extrabold tracking-tight text-slate-900">
+        <a href="/" className="text-xl font-extrabold tracking-tight text-slate-900 hover:opacity-70 transition-opacity">
           Code<span className="text-[#1a6d7e]">Viva</span>
-        </span>
+        </a>
       </header>
 
       {/* 메인 */}
