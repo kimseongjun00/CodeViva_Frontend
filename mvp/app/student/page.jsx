@@ -64,7 +64,7 @@ export default function StudentLogin() {
           </div>
           <div className="space-y-3">
             {[
-              ['코드 제출', '작성한 코드를 URL로 간편하게 제출'],
+              ['코드 제출', '대시보드에서 과제를 선택해 코드 제출'],
               ['AI 음성 인터뷰', '코드 기반 3가지 질문에 음성으로 답변'],
               ['이해도 평가', '답변 분석 후 등급 자동 산출'],
             ].map(([title, desc], i) => (

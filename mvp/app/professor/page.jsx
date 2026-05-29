@@ -83,7 +83,7 @@ export default function ProfessorAuth() {
 
           <div className="space-y-3">
             {[
-              ['과제 링크 공유', '학생에게 URL만 공유하면 바로 접속'],
+              ['과제 출제', '과제를 등록하고 수강 학생에게 자동 배정'],
               ['AI 자동 질문 생성', '제출된 코드 기반으로 맞춤 질문 생성'],
               ['이해도 등급 자동 산출', '음성 답변을 분석해 5단계 등급으로 평가'],
             ].map(([title, desc], i) => (
