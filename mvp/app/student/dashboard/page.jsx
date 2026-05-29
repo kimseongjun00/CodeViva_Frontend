@@ -121,6 +121,9 @@ export default function StudentDashboard() {
                 <h2 className="text-[15px] font-bold tracking-tight text-[#002D56]">
                   {course.name}
                 </h2>
+                {course.instructorName && (
+                  <p className="mt-0.5 text-[11px] text-[#002D56]/50">{course.instructorName} 교수</p>
+                )}
               </div>
 
               {/* 과제 테이블 */}
