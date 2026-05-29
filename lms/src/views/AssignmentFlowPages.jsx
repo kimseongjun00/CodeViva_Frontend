@@ -21,6 +21,14 @@ import Pagination from '../components/eclass/Pagination';
 
 const SUB_PAGE_SIZE = 10;
 
+const stripComments = (code) =>
+  code
+    .replace(/\/\*[\s\S]*?\*\//g, '')        // /* */ 블록 주석
+    .replace(/\/\/[^\n]*/g, '')               // // 한줄 주석
+    .replace(/(^|\n)[ \t]*#[^\n]*/g, '$1')   // # Python 주석
+    .replace(/\n{3,}/g, '\n\n')              // 빈줄 정리
+    .trim();
+
 /* ──────────────────────────────────────────────────────────
    공통 레이아웃
 ────────────────────────────────────────────────────────── */
@@ -1722,7 +1730,7 @@ export const StudentAssignmentVerifyPage = () => {
                       }
                     }}
                     className="min-h-0 flex-1 overflow-y-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap"
-                  >{submissionCode}</pre>
+                  >{stripComments(submissionCode)}</pre>
                 </div>
               </div>
 
