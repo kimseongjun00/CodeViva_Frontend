@@ -191,7 +191,6 @@ function StudentAssignmentVerifyPage() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [answerLockSeconds, setAnswerLockSeconds] = useState(6);
-  const [micTestTimer, setMicTestTimer] = useState(60);
   const [sttOn, setSttOn] = useState(false);
   const [waveHeights, setWaveHeights] = useState(() => Array.from({ length: 24 }, () => 10));
   const [micState, setMicState] = useState('loading');
@@ -598,35 +597,6 @@ function StudentAssignmentVerifyPage() {
     };
   }, [phase, questionIndex]);
 
-  // voice-test 1분 타이머 → start-countdown (마이크 차단 시 자동 진행 안 함)
-  useEffect(() => {
-    if (phase !== 'voice-test') return;
-    setMicTestTimer(60);
-    const interval = setInterval(() => {
-      setMicTestTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          if (micState !== 'blocked' && questionsReadyRef.current) {
-            setPhase('start-countdown');
-            setCountdown(3);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [phase, micState]);
-
-  // 타이머 만료 후 질문이 늦게 도착하면 자동 진행
-  useEffect(() => {
-    if (phase !== 'voice-test') return;
-    if (questions.length === 0) return;
-    if (micTestTimer > 0) return;
-    if (micState === 'blocked') return;
-    setPhase('start-countdown');
-    setCountdown(3);
-  }, [questions, micTestTimer, phase, micState]);
 
   const handleSkipMicTest = () => {
     setPhase('start-countdown');
@@ -1057,22 +1027,16 @@ function StudentAssignmentVerifyPage() {
           {/* 마이크 테스트 */}
           {phase === 'voice-test' && (
             <div className="m-auto w-full max-w-[600px]">
-              {/* 타이틀 + 타이머 */}
-              <div className="mb-7 flex items-start justify-between">
-                <div>
-                  <h3 className="text-[22px] font-bold tracking-tight text-slate-900">마이크 테스트</h3>
-                  <p className="mt-1 text-[13px] text-slate-500">AI 질문 준비 중 — 마이크와 환경을 점검하세요.</p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[30px] font-extrabold tabular-nums leading-none text-slate-800">{micTestTimer}</span>
-                  <span className="mt-0.5 text-[11px] text-slate-400">초 남음</span>
-                </div>
+              {/* 타이틀 */}
+              <div className="mb-6">
+                <h3 className="text-[22px] font-bold tracking-tight text-slate-900">마이크 테스트</h3>
+                <p className="mt-1 text-[13px] text-slate-500">마이크와 환경을 점검하세요. 질문 준비가 완료되면 시작할 수 있습니다.</p>
               </div>
 
-              {/* AI 준비 상태 */}
+              {/* AI 질문 생성 상태 */}
               {pollTimedOut ? (
                 <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3.5">
-                  <p className="text-[13px] font-bold text-red-700">질문 생성 시간 초과</p>
+                  <p className="text-[13px] font-bold text-red-700">질문 생성에 실패했습니다</p>
                   <p className="mt-0.5 text-[12px] text-red-500">AI 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.</p>
                   <div className="mt-2.5 flex gap-2">
                     <button onClick={handleRetryGeneration}
@@ -1086,12 +1050,18 @@ function StudentAssignmentVerifyPage() {
                   </div>
                 </div>
               ) : questions.length === 0 ? (
-                <div className="mb-5 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                  <svg className="h-4 w-4 shrink-0 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                  <p className="text-[13px] text-slate-600">코드를 분석해 질문을 생성하는 중입니다...</p>
+                <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[13px] font-semibold text-slate-600">AI 질문 생성 중</p>
+                    <svg className="h-3.5 w-3.5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full w-full origin-left animate-[loading-bar_2s_ease-in-out_infinite] rounded-full bg-[#146E7A]" />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-slate-400">코드를 분석해 면접 질문을 구성하고 있습니다...</p>
                 </div>
               ) : (
                 <div className="mb-5 flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
