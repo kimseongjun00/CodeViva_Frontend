@@ -698,12 +698,12 @@ function ResultsTab({ courseId }) {
   const statusPollingRef = useRef(null);
 
   const AI_STATUS = {
-    QUESTION_GENERATING:    { label: '질문 생성 중',   cls: 'bg-amber-50 text-amber-600' },
-    AWAITING_AUDIO_ANSWERS: { label: '인터뷰 대기',    cls: 'bg-blue-50 text-blue-600' },
-    AWAITING_EVALUATION:    { label: '평가 대기',      cls: 'bg-purple-50 text-purple-600' },
-    EVALUATING:             { label: '평가 중',        cls: 'bg-indigo-50 text-indigo-600' },
-    EVALUATED:              { label: '평가 완료',      cls: 'bg-emerald-50 text-emerald-600' },
-    EVALUATION_FAILED:      { label: '평가 실패',      cls: 'bg-red-50 text-red-600' },
+    QUESTION_GENERATING:    { label: '질문 생성 중',  cls: 'bg-amber-50 text-amber-600' },
+    AWAITING_AUDIO_ANSWERS: { label: '인터뷰 필요',   cls: 'bg-blue-50 text-blue-600' },
+    AWAITING_EVALUATION:    { label: '평가 중',       cls: 'bg-indigo-50 text-indigo-600' },
+    EVALUATING:             { label: '평가 중',       cls: 'bg-indigo-50 text-indigo-600' },
+    EVALUATED:              { label: '완료',          cls: 'bg-emerald-50 text-emerald-600' },
+    EVALUATION_FAILED:      { label: '평가 실패',     cls: 'bg-red-50 text-red-600' },
   };
 
   useEffect(() => {
