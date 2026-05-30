@@ -166,6 +166,7 @@ export default function StudentDashboard() {
                           </span>
                         );
                       } else {
+                        // AWAITING_EVALUATION, EVALUATING, EVALUATED, EVALUATION_FAILED 모두 학생에게는 제출완료
                         submitBadge = (
                           <span className="inline-block whitespace-nowrap rounded-full bg-[#146E7A]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#146E7A] ring-1 ring-[#146E7A]/20">
                             제출완료
@@ -180,7 +181,7 @@ export default function StudentDashboard() {
                             제출하기
                           </Link>
                         );
-                      } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS' && isOpen) {
+                      } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
                         actionBtn = (
                           <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
                             AI 인터뷰 하기
