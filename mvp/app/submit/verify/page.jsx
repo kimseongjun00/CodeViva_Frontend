@@ -237,6 +237,7 @@ function StudentAssignmentVerifyPage() {
   const sttOnRef = useRef(false);
   const silenceStartRef = useRef(null);
   const hasSpokenRef = useRef(false);
+  const hadSoundRef = useRef(false); // 마지막 틱 이후 소리 감지 여부
   const silenceMetricsRef = useRef({});
   const codeLineLogRef = useRef([]);   // { t: elapsed, line: number, at: timestamp }
   const lastLoggedLineRef = useRef(null);
@@ -546,6 +547,7 @@ function StudentAssignmentVerifyPage() {
           for (let i = 0; i < data.length; i++) energySum += data[i];
           const isActive = energySum / data.length > SILENCE_THRESHOLD;
           sttOnRef.current = isActive;
+          if (isActive) hadSoundRef.current = true;
           setSttOn(isActive);
           setWaveHeights(levels);
           rafRef.current = requestAnimationFrame(updateWave);
@@ -664,12 +666,14 @@ function StudentAssignmentVerifyPage() {
     if (phase !== 'question') {
       silenceStartRef.current = null;
       hasSpokenRef.current = false;
+      hadSoundRef.current = false;
       setCurrentSilenceDuration(0);
       return;
     }
 
     const id = setInterval(() => {
-      const isActive = sttOnRef.current;
+      const isActive = hadSoundRef.current || sttOnRef.current;
+      hadSoundRef.current = false; // 틱마다 리셋
       const elapsed = answerElapsedRef.current;
       const qi = questionIndex;
 
