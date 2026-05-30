@@ -1044,13 +1044,15 @@ function ResultsTab({ courseId }) {
                                       <div className="border-t border-slate-100 px-4 py-3 space-y-2">
                                         <p className="text-xs font-medium leading-relaxed text-slate-700">{ans.questionText}</p>
                                         {ans.audioDownloadUrl && (
-                                          <div className="rounded-lg bg-slate-50 p-2.5">
-                                            <p className="mb-1.5 text-[11px] font-semibold text-slate-500">음성 답변</p>
-                                            <audio
-                                              controls
-                                              src={ans.audioDownloadUrl}
-                                              className="h-8 w-full"
-                                            />
+                                          <div className="rounded-lg bg-slate-50 p-2.5 space-y-2">
+                                            <p className="text-[11px] font-semibold text-slate-500">음성 답변</p>
+                                            <AudioPlayer src={ans.audioDownloadUrl} />
+                                            {ans.rawStt && (
+                                              <div className="pt-1 border-t border-slate-200">
+                                                <p className="text-[11px] font-semibold text-slate-400 mb-0.5">음성 변환 텍스트</p>
+                                                <p className="text-[11px] leading-relaxed text-slate-600">{ans.rawStt}</p>
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                         {ans.summary && (
@@ -1063,12 +1065,6 @@ function ResultsTab({ courseId }) {
                                           <div className="flex flex-wrap gap-1.5">
                                             {ans.accuracy && <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">정확도: {ans.accuracy}</span>}
                                             {ans.depth && <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">깊이: {ans.depth}</span>}
-                                          </div>
-                                        )}
-                                        {ans.rawStt && (
-                                          <div className="rounded-lg bg-slate-50 p-2.5">
-                                            <p className="text-[11px] font-semibold text-slate-500">음성 변환 텍스트</p>
-                                            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{ans.rawStt}</p>
                                           </div>
                                         )}
                                       </div>
@@ -1218,6 +1214,70 @@ export default function ProfessorDashboard() {
               {tab === 'results'     && <ResultsTab courseId={course.id} />}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AudioPlayer({ src }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(null);
+
+  const toggle = () => {
+    if (!audioRef.current) return;
+    playing ? audioRef.current.pause() : audioRef.current.play();
+  };
+
+  const handleSeek = (e) => {
+    if (!audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audioRef.current.currentTime = ratio * duration;
+    setCurrentTime(ratio * duration);
+  };
+
+  const fmt = (s) => {
+    if (s == null || !isFinite(s)) return '--:--';
+    return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  };
+
+  const pct = duration ? Math.min(100, (currentTime / duration) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={() => {
+          const d = audioRef.current?.duration;
+          setDuration(isFinite(d) ? d : null);
+          setCurrentTime(0);
+        }}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCurrentTime(0); if (audioRef.current) audioRef.current.currentTime = 0; }}
+      />
+      <button
+        onClick={toggle}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#146E7A] text-white text-xs hover:bg-teal-700 transition-colors"
+      >
+        {playing ? '⏸' : '▶'}
+      </button>
+      <div className="flex flex-1 flex-col gap-1">
+        <div
+          className="relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-slate-300"
+          onClick={handleSeek}
+        >
+          <div className="h-full rounded-full bg-[#146E7A]" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex justify-between text-[10px] text-slate-400">
+          <span>{fmt(currentTime)}</span>
+          <span>{fmt(duration)}</span>
         </div>
       </div>
     </div>
