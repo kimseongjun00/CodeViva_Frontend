@@ -687,6 +687,7 @@ function ResultsTab({ courseId }) {
   const [assignments, setAssignments] = useState([]);
   const [selected, setSelected] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [answersMap, setAnswersMap] = useState({});
   const [emailMap, setEmailMap] = useState({});
   const [loading, setLoading] = useState(false);
@@ -769,9 +770,14 @@ function ResultsTab({ courseId }) {
     setLoading(true);
     setAnswersMap({});
     setExpanded(null);
+    setEnrolledStudents([]);
     try {
-      const subs = await getSubmissionsByAssignment(assignment.id);
+      const [subs, students] = await Promise.all([
+        getSubmissionsByAssignment(assignment.id),
+        getCourseUsers(courseId).then((list) => list.filter((u) => u.courseRole === 'STUDENT')).catch(() => []),
+      ]);
       setSubmissions(subs);
+      setEnrolledStudents(students);
       const pairs = await Promise.all(
         subs.map(async (s) => {
           try { return [s.id, await getAnswersBySubmission(s.id)]; }
@@ -807,6 +813,12 @@ function ResultsTab({ courseId }) {
   const getStudentId = (userId) =>
     emailMap[userId]?.replace('@codeviva.kr', '') ?? String(userId ?? '-');
 
+  // 등록된 전체 학생과 제출 데이터를 병합: 미제출 학생도 표시
+  const subByUserId = Object.fromEntries(submissions.map((s) => [s.userId, s]));
+  const mergedRows = enrolledStudents.length > 0
+    ? enrolledStudents.map((st) => subByUserId[st.userId] ?? { userId: st.userId, userName: st.userName, _notSubmitted: true })
+    : submissions;
+
   return (
     <div>
       {/* 과제 선택 */}
@@ -835,7 +847,7 @@ function ResultsTab({ courseId }) {
           {!loading && (() => {
             const gc = Object.fromEntries(GRADE_ORDER.map((g) => [g, 0]));
             gc.pending = 0;
-            submissions.forEach((s) => {
+            mergedRows.forEach((s) => {
               if (s.grade && gc[s.grade] !== undefined) gc[s.grade]++;
               else gc.pending++;
             });
@@ -917,9 +929,9 @@ function ResultsTab({ courseId }) {
 
           {loading ? (
             <p className="py-8 text-center text-sm text-slate-400">불러오는 중...</p>
-          ) : submissions.length === 0 ? (
+          ) : mergedRows.length === 0 ? (
             <div className="rounded-2xl border-2 border-dashed border-slate-200 py-14 text-center text-slate-400">
-              <p className="text-sm">제출한 학생이 없습니다.</p>
+              <p className="text-sm">등록된 학생이 없습니다.</p>
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -936,7 +948,22 @@ function ResultsTab({ courseId }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {submissions.map((sub) => {
+                  {mergedRows.map((sub) => {
+                    if (sub._notSubmitted) {
+                      return (
+                        <tr key={`ns-${sub.userId}`} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600">{getStudentId(sub.userId)}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800">{sub.userName ?? '-'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-400">미제출</span>
+                          </td>
+                          <td className="px-4 py-3 text-center"><span className="text-xs text-slate-300">-</span></td>
+                          <td className="px-4 py-3 text-center"><span className="text-xs text-slate-300">-</span></td>
+                          <td className="px-4 py-3 text-center"><span className="text-xs text-slate-300">-</span></td>
+                          <td className="px-4 py-3 text-center"><span className="text-xs text-slate-300">-</span></td>
+                        </tr>
+                      );
+                    }
                     const gradeCfg = sub.grade ? GRADE_CFG[sub.grade] : null;
                     const isExpanded = expanded === sub.id;
                     const answers = (answersMap[sub.id] ?? []).slice().sort((a, b) => (a.questionOrder ?? 0) - (b.questionOrder ?? 0));
