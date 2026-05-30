@@ -141,9 +141,63 @@ export default function StudentDashboard() {
                   <tbody className="divide-y divide-slate-100">
                     {assignments.map((a) => {
                       const status = getStatus(a.openAt, a.dueAt);
-                      const isDone = !!submissionMap[a.id];
+                      const sub = submissionMap[a.id];
+                      const aiStatus = sub?.aiValidationStatus;
                       const isOpen = status.label === '진행중';
                       const href = `/submit?t=${btoa(String(a.id))}`;
+
+                      let submitBadge;
+                      if (!sub) {
+                        submitBadge = (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-400">
+                            미제출
+                          </span>
+                        );
+                      } else if (aiStatus === 'QUESTION_GENERATING') {
+                        submitBadge = (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 ring-1 ring-amber-200">
+                            질문 생성 중
+                          </span>
+                        );
+                      } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
+                        submitBadge = (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-600 ring-1 ring-blue-200">
+                            인터뷰 필요
+                          </span>
+                        );
+                      } else {
+                        submitBadge = (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-[#146E7A]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#146E7A] ring-1 ring-[#146E7A]/20">
+                            제출완료
+                          </span>
+                        );
+                      }
+
+                      let actionBtn;
+                      if (!sub && isOpen) {
+                        actionBtn = (
+                          <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-[#146E7A] px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0f5560]">
+                            제출하기
+                          </Link>
+                        );
+                      } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS' && isOpen) {
+                        actionBtn = (
+                          <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
+                            AI 인터뷰 하기
+                          </Link>
+                        );
+                      } else if (aiStatus === 'QUESTION_GENERATING') {
+                        actionBtn = <span className="text-[11px] text-slate-300">대기 중...</span>;
+                      } else if (sub) {
+                        actionBtn = (
+                          <Link href={href} className="inline-block whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50">
+                            보기
+                          </Link>
+                        );
+                      } else {
+                        actionBtn = <span className="text-[11px] text-slate-300">—</span>;
+                      }
+
                       return (
                         <tr key={a.id} className="transition hover:bg-slate-50/80">
                           <td className="px-6 py-4">
@@ -158,36 +212,8 @@ export default function StudentDashboard() {
                           <td className="px-4 py-4 text-center text-xs text-slate-500">
                             {fmtDate(a.dueAt)}
                           </td>
-                          <td className="px-4 py-4 text-center">
-                            {isDone ? (
-                              <span className="inline-block whitespace-nowrap rounded-full bg-[#146E7A]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#146E7A] ring-1 ring-[#146E7A]/20">
-                                제출완료
-                              </span>
-                            ) : (
-                              <span className="inline-block whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] text-slate-400">
-                                미제출
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            {!isDone && isOpen ? (
-                              <Link
-                                href={href}
-                                className="inline-block whitespace-nowrap rounded-lg bg-[#146E7A] px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0f5560]"
-                              >
-                                제출하기
-                              </Link>
-                            ) : isDone ? (
-                              <Link
-                                href={href}
-                                className="inline-block whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50"
-                              >
-                                보기
-                              </Link>
-                            ) : (
-                              <span className="text-[11px] text-slate-300">—</span>
-                            )}
-                          </td>
+                          <td className="px-4 py-4 text-center">{submitBadge}</td>
+                          <td className="px-4 py-4 text-center">{actionBtn}</td>
                         </tr>
                       );
                     })}
