@@ -234,6 +234,17 @@ function SubmitInner() {
 
   /* ── 제출 완료: read-only ── */
   if (isSubmitted) {
+    const STATUS_CFG = {
+      QUESTION_GENERATING:    { badge: '질문 생성 중', badgeCls: 'bg-amber-50 text-amber-600', desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 대시보드에서 확인하세요.' },
+      AWAITING_AUDIO_ANSWERS: { badge: '인터뷰 필요',  badgeCls: 'bg-blue-50 text-blue-600',   desc: 'AI 음성 인터뷰를 완료해주세요.' },
+      AWAITING_EVALUATION:    { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
+      EVALUATING:             { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
+      EVALUATED:              { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '제출 및 평가가 모두 완료되었습니다.' },
+      EVALUATION_FAILED:      { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '제출이 완료되었습니다.' },
+    };
+    const cfg = STATUS_CFG[existingStatus] ?? { badge: '제출완료', badgeCls: 'bg-teal-50 text-[#146E7A]', desc: '제출된 코드는 수정할 수 없습니다.' };
+    const showInterviewBtn = existingStatus === 'AWAITING_AUDIO_ANSWERS';
+
     return (
       <Shell>
         <div className="mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden border-x border-slate-200 bg-white shadow-sm lg:flex-row">
@@ -243,19 +254,19 @@ function SubmitInner() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-[15px] font-bold text-slate-900">제출한 코드</h3>
-                  <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-bold text-[#146E7A]">
-                    제출완료
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cfg.badgeCls}`}>
+                    {cfg.badge}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[12px] text-slate-400">제출된 코드는 수정할 수 없습니다.</p>
+                <p className="mt-0.5 text-[12px] text-slate-400">{cfg.desc}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {existingSubmissionId && ['QUESTION_GENERATING', 'QUESTION_GENERATION_FAILED', 'AWAITING_AUDIO_ANSWERS'].includes(existingStatus) && (
+                {showInterviewBtn && existingSubmissionId && (
                   <button
                     onClick={() => router.push(`/submit/verify?submissionId=${existingSubmissionId}`)}
-                    className="rounded-lg bg-[#146E7A] px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-800"
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
                   >
-                    AI 인터뷰 계속하기
+                    AI 인터뷰 하기
                   </button>
                 )}
                 <a
