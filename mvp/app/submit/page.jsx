@@ -162,6 +162,9 @@ function SubmitInner() {
 
   const studentId = user?.email?.replace('@codeviva.kr', '') ?? '';
   const isSubmitted = existingCode !== null;
+  const now = new Date();
+  const isPastDue = assignment.dueAt && new Date(assignment.dueAt) < now;
+  const isNotYetOpen = assignment.openAt && new Date(assignment.openAt) > now;
 
   /* ── 공통: 과제 정보 사이드바 ── */
   const AssignmentAside = () => (
@@ -247,12 +250,12 @@ function SubmitInner() {
                 <p className="mt-0.5 text-[12px] text-slate-400">제출된 코드는 수정할 수 없습니다.</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {existingSubmissionId && ['QUESTION_GENERATING', 'QUESTION_GENERATION_FAILED'].includes(existingStatus) && (
+                {existingSubmissionId && ['QUESTION_GENERATING', 'QUESTION_GENERATION_FAILED', 'AWAITING_AUDIO_ANSWERS'].includes(existingStatus) && (
                   <button
                     onClick={() => router.push(`/submit/verify?submissionId=${existingSubmissionId}`)}
                     className="rounded-lg bg-[#146E7A] px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-800"
                   >
-                    AI 검증 시작
+                    AI 인터뷰 계속하기
                   </button>
                 )}
                 <a
@@ -279,6 +282,29 @@ function SubmitInner() {
                 {existingCode || '// 코드 내용 없음'}
               </pre>
             </div>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  /* ── 미제출: 마감 or 미개방 ── */
+  if (isPastDue || isNotYetOpen) {
+    return (
+      <Shell>
+        <div className="mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden border-x border-slate-200 bg-white shadow-sm lg:flex-row">
+          <AssignmentAside />
+          <div className="flex flex-1 flex-col items-center justify-center py-24 text-center">
+            <div className="mb-3 text-2xl text-slate-300">{isPastDue ? '🔒' : '⏳'}</div>
+            <p className="text-sm font-semibold text-slate-700">
+              {isPastDue ? '제출 기간이 종료되었습니다.' : '아직 제출 기간이 아닙니다.'}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {isPastDue ? `마감: ${fmtDate(assignment.dueAt)}` : `시작: ${fmtDate(assignment.openAt)}`}
+            </p>
+            <a href="/student/dashboard" className="mt-6 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+              대시보드로
+            </a>
           </div>
         </div>
       </Shell>
