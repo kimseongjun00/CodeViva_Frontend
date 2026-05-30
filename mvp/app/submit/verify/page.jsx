@@ -173,10 +173,12 @@ function StudentAssignmentVerifyPage() {
   const submissionId = searchParams.get('submissionId');
 
   const [questions, setQuestions] = useState([]);
+  const questionsReadyRef = useRef(false); // 타이머 클로저용
   const [submissionCode, setSubmissionCode] = useState(MOCK_CODE);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [pollTimedOut, setPollTimedOut] = useState(false);
+  const pollTimedOutRef = useRef(false); // 타이머 클로저용
   const [interviewBlocked, setInterviewBlocked] = useState(false);
   const submissionCodeRef = useRef('');
   const [securityWarning, setSecurityWarning] = useState('');
@@ -250,6 +252,7 @@ function StudentAssignmentVerifyPage() {
   useEffect(() => {
     if (!submissionId) {
       setQuestions(MOCK_QUESTIONS);
+      questionsReadyRef.current = true;
       setLoadingQuestions(false);
       return;
     }
@@ -273,6 +276,7 @@ function StudentAssignmentVerifyPage() {
         }
         const status = sub.aiValidationStatus;
         if (status === 'QUESTION_GENERATION_FAILED') {
+          pollTimedOutRef.current = true;
           setPollTimedOut(true);
           setLoadingQuestions(false);
           return;
@@ -292,6 +296,7 @@ function StudentAssignmentVerifyPage() {
           // 재접속 차단용: 질문을 받은 시점을 localStorage에 기록
           localStorage.setItem(`cv_interview_started_${submissionId}`, '1');
           setQuestions(qs);
+          questionsReadyRef.current = true;
           setLoadingQuestions(false);
           return;
         }
@@ -299,6 +304,7 @@ function StudentAssignmentVerifyPage() {
         // mock ID로 폴백하면 배치 제출 시 400 에러 발생
         pollCount += 1;
         if (pollCount >= MAX_POLLS) {
+          pollTimedOutRef.current = true;
           setPollTimedOut(true);
           setLoadingQuestions(false);
           return;
@@ -309,6 +315,7 @@ function StudentAssignmentVerifyPage() {
           // 네트워크 오류 → 재시도
           pollCount += 1;
           if (pollCount >= MAX_POLLS) {
+            pollTimedOutRef.current = true;
             setPollTimedOut(true);
             setLoadingQuestions(false);
           } else {
@@ -599,7 +606,7 @@ function StudentAssignmentVerifyPage() {
       setMicTestTimer((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (micState !== 'blocked') {
+          if (micState !== 'blocked' && questionsReadyRef.current) {
             setPhase('start-countdown');
             setCountdown(3);
           }
@@ -610,6 +617,16 @@ function StudentAssignmentVerifyPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [phase, micState]);
+
+  // 타이머 만료 후 질문이 늦게 도착하면 자동 진행
+  useEffect(() => {
+    if (phase !== 'voice-test') return;
+    if (questions.length === 0) return;
+    if (micTestTimer > 0) return;
+    if (micState === 'blocked') return;
+    setPhase('start-countdown');
+    setCountdown(3);
+  }, [questions, micTestTimer, phase, micState]);
 
   const handleSkipMicTest = () => {
     setPhase('start-countdown');
@@ -849,6 +866,8 @@ function StudentAssignmentVerifyPage() {
 
   const handleRetryGeneration = async () => {
     setPollTimedOut(false);
+    pollTimedOutRef.current = false;
+    questionsReadyRef.current = false;
     setLoadingQuestions(true);
     try {
       await updateSubmission({
