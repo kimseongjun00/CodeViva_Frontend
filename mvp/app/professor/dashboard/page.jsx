@@ -694,6 +694,7 @@ function ResultsTab({ courseId }) {
   const [evalStatus, setEvalStatus] = useState('idle'); // 'idle'|'triggering'|'running'|'done'
   const [evalError, setEvalError] = useState('');
   const evalPollingRef = useRef(null);
+  const statusPollingRef = useRef(null);
 
   const AI_STATUS = {
     QUESTION_GENERATING:    { label: '질문 생성 중',   cls: 'bg-amber-50 text-amber-600' },
@@ -761,6 +762,7 @@ function ResultsTab({ courseId }) {
 
   const loadResults = async (assignment) => {
     clearTimeout(evalPollingRef.current);
+    clearInterval(statusPollingRef.current);
     setSelected(assignment);
     setEvalStatus('idle');
     setEvalError('');
@@ -781,6 +783,26 @@ function ResultsTab({ courseId }) {
       setLoading(false);
     }
   };
+
+  // 제출 상태가 중간 단계면 8초마다 자동 갱신
+  useEffect(() => {
+    clearInterval(statusPollingRef.current);
+    if (!selected) return;
+    const needsPolling = submissions.some((s) =>
+      s.aiValidationStatus === 'QUESTION_GENERATING' ||
+      s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+    );
+    if (!needsPolling) return;
+    statusPollingRef.current = setInterval(async () => {
+      const updated = await refreshSubmissions(selected.id).catch(() => []);
+      const stillPending = updated.some((s) =>
+        s.aiValidationStatus === 'QUESTION_GENERATING' ||
+        s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+      );
+      if (!stillPending) clearInterval(statusPollingRef.current);
+    }, 8000);
+    return () => clearInterval(statusPollingRef.current);
+  }, [selected, submissions, refreshSubmissions]);
 
   const getStudentId = (userId) =>
     emailMap[userId]?.replace('@codeviva.kr', '') ?? String(userId ?? '-');
