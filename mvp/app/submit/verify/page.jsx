@@ -584,7 +584,7 @@ function StudentAssignmentVerifyPage() {
     };
   }, [phase, questionIndex]);
 
-  // voice-test 1분 타이머 → start-countdown
+  // voice-test 1분 타이머 → start-countdown (마이크 차단 시 자동 진행 안 함)
   useEffect(() => {
     if (phase !== 'voice-test') return;
     setMicTestTimer(60);
@@ -592,15 +592,17 @@ function StudentAssignmentVerifyPage() {
       setMicTestTimer((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          setPhase('start-countdown');
-          setCountdown(3);
+          if (micState !== 'blocked') {
+            setPhase('start-countdown');
+            setCountdown(3);
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [phase]);
+  }, [phase, micState]);
 
   const handleSkipMicTest = () => {
     setPhase('start-countdown');
