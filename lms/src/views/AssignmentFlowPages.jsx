@@ -24,8 +24,9 @@ const SUB_PAGE_SIZE = 10;
 const stripComments = (code) =>
   code
     .replace(/\/\*[\s\S]*?\*\//g, '')        // /* */ 블록 주석
-    .replace(/\/\/[^\n]*/g, '')               // // 한줄 주석
-    .replace(/(^|\n)[ \t]*#[^\n]*/g, '$1')   // # Python 주석
+    .replace(/\/\/[^\n]*/g, '')               // // 한줄 주석 (라인 시작 + 인라인)
+    .replace(/(^|\n)[ \t]*#[^\n]*/g, '$1')   // # 줄 주석 (라인 시작)
+    .replace(/[ \t]+#[^\n]*/g, '')           // # 인라인 주석 (공백 뒤)
     .replace(/\n{3,}/g, '\n\n')              // 빈줄 정리
     .trim();
 
