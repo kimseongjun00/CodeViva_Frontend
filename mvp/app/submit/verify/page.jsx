@@ -183,6 +183,8 @@ function StudentAssignmentVerifyPage() {
   const waveformBars = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
 
   const [phase, setPhase] = useState('voice-test');
+  const phaseRef = useRef('voice-test');
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [answerLockSeconds, setAnswerLockSeconds] = useState(6);
@@ -333,18 +335,20 @@ function StudentAssignmentVerifyPage() {
       if (isCapture || isCopyPaste) {
         e.preventDefault();
         e.stopPropagation();
-        setSecurityWarning(
-          isCopyPaste
-            ? '복사/붙여넣기가 차단되었습니다. 이 행위는 기록됩니다.'
-            : '화면 캡처가 감지되었습니다. 이 행위는 기록됩니다.',
-        );
-        setTimeout(() => setSecurityWarning(''), 3500);
+        if (phaseRef.current !== 'voice-test') {
+          setSecurityWarning(
+            isCopyPaste
+              ? '복사/붙여넣기가 차단되었습니다. 이 행위는 기록됩니다.'
+              : '화면 캡처가 감지되었습니다. 이 행위는 기록됩니다.',
+          );
+          setTimeout(() => setSecurityWarning(''), 3500);
+        }
       }
     };
     const blockClipboard = (e) => { e.preventDefault(); };
     const blockContext = (e) => e.preventDefault();
     const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
+      if (document.visibilityState === 'hidden' && phaseRef.current !== 'voice-test') {
         tabSwitchCountRef.current += 1;
         setTabSwitchCount((prev) => prev + 1);
         securityLogRef.current.push({ type: 'tab_switch', at: new Date().toISOString() });
@@ -385,7 +389,7 @@ function StudentAssignmentVerifyPage() {
       fsTransitionRef.current = true;
       setTimeout(() => { fsTransitionRef.current = false; }, 600);
       setIsFullscreen(isFull);
-      if (!isFull) {
+      if (!isFull && phase !== 'voice-test') {
         fullscreenExitCountRef.current += 1;
         setFullscreenExitCount((p) => p + 1);
         securityLogRef.current.push({ type: 'fullscreen_exit', at: new Date().toISOString() });
@@ -404,7 +408,7 @@ function StudentAssignmentVerifyPage() {
 
   // DevTools 감지 (창 크기 휴리스틱, 1초 폴링)
   useEffect(() => {
-    if (phase === 'done') return;
+    if (phase === 'done' || phase === 'voice-test') return;
     let wasOpen = false;
     const check = () => {
       const isOpen =
@@ -429,7 +433,7 @@ function StudentAssignmentVerifyPage() {
 
   // 포커스 이탈 감지 (윈도우 blur + 듀얼모니터 커서 이탈)
   useEffect(() => {
-    if (phase === 'done') return;
+    if (phase === 'done' || phase === 'voice-test') return;
 
     // 윈도우 blur: 다른 앱 클릭 시 (듀얼모니터 포함)
     const handleBlur = () => {
@@ -903,7 +907,7 @@ function StudentAssignmentVerifyPage() {
       />
 
       {/* 전체화면 미진입 오버레이 */}
-      {!isFullscreen && phase !== 'done' && (
+      {!isFullscreen && phase !== 'done' && phase !== 'voice-test' && (
         <div className="fixed inset-0 z-[99998] flex flex-col items-center justify-center bg-slate-900/97">
           <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-slate-800 text-5xl">
             🔒
@@ -931,7 +935,7 @@ function StudentAssignmentVerifyPage() {
       )}
 
       {/* 포커스 이탈 / DevTools 블러 오버레이 */}
-      {((!windowFocused || devToolsOpen) && phase !== 'done') && (
+      {((!windowFocused || devToolsOpen) && phase !== 'done' && phase !== 'voice-test') && (
         <div className="fixed inset-0 z-[99990] flex flex-col items-center justify-center backdrop-blur-xl bg-slate-900/80">
           <div className="mb-4 text-5xl">{devToolsOpen ? '🔧' : '👁'}</div>
           <h2 className="mb-2 text-xl font-bold text-white">
