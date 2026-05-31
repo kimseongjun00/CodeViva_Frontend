@@ -752,7 +752,9 @@ function StudentAssignmentVerifyPage() {
         },
       });
     } catch (e) {
-      setSubmitError('답변 제출에 실패했습니다. 네트워크 상태를 확인하거나 담당 교수님께 문의하세요.');
+      // 서버 오류로 제출 실패 — 플래그 제거해서 재시도 허용
+      if (submissionId) localStorage.removeItem(`cv_interview_started_${submissionId}`);
+      setSubmitError('답변 제출에 실패했습니다. 대시보드에서 다시 시도해주세요.');
     } finally {
       // 부정행위 로그 콘솔 출력 (백엔드 연동 시 별도 API로 전송)
       console.info('[CodeViva Security Log]', {
