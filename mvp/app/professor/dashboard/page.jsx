@@ -698,12 +698,14 @@ function ResultsTab({ courseId }) {
   const statusPollingRef = useRef(null);
 
   const AI_STATUS = {
-    QUESTION_GENERATING:    { label: '질문 생성 중',  cls: 'bg-amber-50 text-amber-600' },
-    AWAITING_AUDIO_ANSWERS: { label: '인터뷰 필요',   cls: 'bg-blue-50 text-blue-600' },
-    AWAITING_EVALUATION:    { label: '평가 중',       cls: 'bg-indigo-50 text-indigo-600' },
-    EVALUATING:             { label: '평가 중',       cls: 'bg-indigo-50 text-indigo-600' },
-    EVALUATED:              { label: '완료',          cls: 'bg-emerald-50 text-emerald-600' },
-    EVALUATION_FAILED:      { label: '평가 실패',     cls: 'bg-red-50 text-red-600' },
+    QUESTION_GENERATING:        { label: '질문 생성 중',   cls: 'bg-amber-50 text-amber-600' },
+    QUESTION_GENERATION_FAILED: { label: '질문 생성 실패', cls: 'bg-red-50 text-red-600' },
+    AWAITING_AUDIO_ANSWERS:     { label: '인터뷰 필요',    cls: 'bg-blue-50 text-blue-600' },
+    READY_FOR_EVALUATION:       { label: '평가 중',        cls: 'bg-indigo-50 text-indigo-600' },
+    AWAITING_EVALUATION:        { label: '평가 중',        cls: 'bg-indigo-50 text-indigo-600' },
+    EVALUATING:                 { label: '평가 중',        cls: 'bg-indigo-50 text-indigo-600' },
+    EVALUATED:                  { label: '완료',           cls: 'bg-emerald-50 text-emerald-600' },
+    EVALUATION_FAILED:          { label: '평가 실패',      cls: 'bg-red-50 text-red-600' },
   };
 
   useEffect(() => {
@@ -733,6 +735,7 @@ function ResultsTab({ courseId }) {
       const poll = async () => {
         const subs = await refreshSubmissions(assignmentId);
         const evaluatable = subs.filter((s) =>
+          s.aiValidationStatus === 'READY_FOR_EVALUATION' ||
           s.aiValidationStatus === 'AWAITING_EVALUATION' ||
           s.aiValidationStatus === 'EVALUATING' ||
           s.aiValidationStatus === 'EVALUATED' ||
@@ -873,7 +876,9 @@ function ResultsTab({ courseId }) {
           {/* 이해도 평가 트리거 */}
           {!loading && (() => {
             const readyCount = submissions.filter((s) =>
-              s.aiValidationStatus === 'AWAITING_EVALUATION' || s.aiValidationStatus === 'EVALUATING'
+              s.aiValidationStatus === 'READY_FOR_EVALUATION' ||
+              s.aiValidationStatus === 'AWAITING_EVALUATION' ||
+              s.aiValidationStatus === 'EVALUATING'
             ).length;
             const evaluatedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATED').length;
             const failedCount = submissions.filter((s) => s.aiValidationStatus === 'EVALUATION_FAILED').length;

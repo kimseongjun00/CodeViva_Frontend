@@ -148,8 +148,36 @@ function SubmitInner() {
       const s = e?.message;
       const body = e?.body ?? '';
       if (s === '403') setError('수강 등록이 되지 않았습니다. 교수님께 문의하세요.');
+      else if (s === '400' && body.toLowerCase().includes('already submitted')) {
+        // 이미 제출된 상태인데 감지를 못한 경우 — 기존 제출 불러와서 read-only 전환
+        const token = localStorage.getItem('cv_student_token');
+        const subs = await apiClient('/submissions/my', token).catch(() => []);
+        const existing = subs.find((sub) => String(sub.assignmentId) === String(assignmentId));
+        if (existing) {
+          const full = await getSubmission(existing.id).catch(() => null);
+          setExistingCode(full?.code ?? '');
+          setExistingSubmissionId(existing.id);
+          setExistingStatus(full?.aiValidationStatus ?? existing.aiValidationStatus ?? null);
+        } else {
+          setError('이미 제출된 과제입니다. 페이지를 새로고침해주세요.');
+        }
+      }
       else if (s === '400' && body.includes('not open')) setError('아직 과제 제출 기간이 아닙니다.');
       else if (s === '401') setError('인증이 만료됐습니다. 다시 로그인해주세요.');
+      else if (s === '500') {
+        // 500이어도 실제로 제출이 완료됐을 수 있음 — 확인 후 전환
+        const token = localStorage.getItem('cv_student_token');
+        const subs = await apiClient('/submissions/my', token).catch(() => []);
+        const existing = subs.find((sub) => String(sub.assignmentId) === String(assignmentId));
+        if (existing) {
+          const full = await getSubmission(existing.id).catch(() => null);
+          setExistingCode(full?.code ?? '');
+          setExistingSubmissionId(existing.id);
+          setExistingStatus(full?.aiValidationStatus ?? existing.aiValidationStatus ?? null);
+        } else {
+          setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요. (500)');
+        }
+      }
       else setError(`제출에 실패했습니다. (${s}${body ? ': ' + body : ''})`);
     } finally {
       setSubmitting(false);
@@ -235,15 +263,17 @@ function SubmitInner() {
   /* ── 제출 완료: read-only ── */
   if (isSubmitted) {
     const STATUS_CFG = {
-      QUESTION_GENERATING:    { badge: '질문 생성 중', badgeCls: 'bg-amber-50 text-amber-600', desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 대시보드에서 확인하세요.' },
-      AWAITING_AUDIO_ANSWERS: { badge: '인터뷰 필요',  badgeCls: 'bg-blue-50 text-blue-600',   desc: 'AI 음성 인터뷰를 완료해주세요.' },
-      AWAITING_EVALUATION:    { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
-      EVALUATING:             { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
-      EVALUATED:              { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '제출 및 평가가 모두 완료되었습니다.' },
-      EVALUATION_FAILED:      { badge: '제출완료',     badgeCls: 'bg-teal-50 text-[#146E7A]',  desc: '제출이 완료되었습니다.' },
+      QUESTION_GENERATING:        { badge: '질문 생성 중',   badgeCls: 'bg-amber-50 text-amber-600',  desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 대시보드에서 확인하세요.' },
+      QUESTION_GENERATION_FAILED: { badge: '인터뷰 필요',    badgeCls: 'bg-red-50 text-red-500',      desc: '질문 생성에 실패했습니다. 아래 버튼으로 인터뷰를 재시도해주세요.' },
+      AWAITING_AUDIO_ANSWERS:     { badge: '인터뷰 필요',    badgeCls: 'bg-blue-50 text-blue-600',    desc: 'AI 음성 인터뷰를 완료해주세요.' },
+      READY_FOR_EVALUATION:       { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
+      AWAITING_EVALUATION:        { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
+      EVALUATING:                 { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '인터뷰가 완료되었습니다. 교수님이 평가를 시작하면 자동으로 진행됩니다.' },
+      EVALUATED:                  { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '제출 및 평가가 모두 완료되었습니다.' },
+      EVALUATION_FAILED:          { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '제출이 완료되었습니다.' },
     };
     const cfg = STATUS_CFG[existingStatus] ?? { badge: '제출완료', badgeCls: 'bg-teal-50 text-[#146E7A]', desc: '제출된 코드는 수정할 수 없습니다.' };
-    const showInterviewBtn = existingStatus === 'AWAITING_AUDIO_ANSWERS';
+    const showInterviewBtn = existingStatus === 'AWAITING_AUDIO_ANSWERS' || existingStatus === 'QUESTION_GENERATION_FAILED';
 
     return (
       <Shell>
@@ -264,9 +294,9 @@ function SubmitInner() {
                 {showInterviewBtn && existingSubmissionId && (
                   <button
                     onClick={() => router.push(`/submit/verify?submissionId=${existingSubmissionId}`)}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                    className={`rounded-lg px-4 py-2 text-sm font-bold text-white transition ${existingStatus === 'QUESTION_GENERATION_FAILED' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
                   >
-                    AI 인터뷰 하기
+                    {existingStatus === 'QUESTION_GENERATION_FAILED' ? 'AI 인터뷰 재시도' : 'AI 인터뷰 하기'}
                   </button>
                 )}
                 <a

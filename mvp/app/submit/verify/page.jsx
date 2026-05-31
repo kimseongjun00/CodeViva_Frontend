@@ -286,7 +286,7 @@ function StudentAssignmentVerifyPage() {
           setPhase('done');
           return;
         }
-        if (status === 'EVALUATING' || status === 'AWAITING_EVALUATION') {
+        if (status === 'READY_FOR_EVALUATION' || status === 'EVALUATING' || status === 'AWAITING_EVALUATION') {
           setPhase('done');
           return;
         }

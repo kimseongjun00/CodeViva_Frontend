@@ -159,6 +159,12 @@ export default function StudentDashboard() {
                             질문 생성 중
                           </span>
                         );
+                      } else if (aiStatus === 'QUESTION_GENERATION_FAILED') {
+                        submitBadge = (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-500 ring-1 ring-red-200">
+                            인터뷰 필요
+                          </span>
+                        );
                       } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
                         submitBadge = (
                           <span className="inline-block whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-600 ring-1 ring-blue-200">
@@ -179,6 +185,12 @@ export default function StudentDashboard() {
                         actionBtn = (
                           <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-[#146E7A] px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0f5560]">
                             제출하기
+                          </Link>
+                        );
+                      } else if (aiStatus === 'QUESTION_GENERATION_FAILED') {
+                        actionBtn = (
+                          <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-red-500 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-red-600">
+                            AI 인터뷰 재시도
                           </Link>
                         );
                       } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
