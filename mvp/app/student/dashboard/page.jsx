@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -27,6 +27,7 @@ export default function StudentDashboard() {
   const [submissionMap, setSubmissionMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem('cv_student_token');
@@ -65,6 +66,28 @@ export default function StudentDashboard() {
 
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // QUESTION_GENERATING / AWAITING_AUDIO_ANSWERS 상태가 있으면 10초마다 제출 상태 갱신
+  useEffect(() => {
+    clearInterval(pollingRef.current);
+    const needsPolling = Object.values(submissionMap).some((s) =>
+      s.aiValidationStatus === 'QUESTION_GENERATING' ||
+      s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+    );
+    if (!needsPolling) return;
+    pollingRef.current = setInterval(async () => {
+      const subs = await getMySubmissions().catch(() => []);
+      const map = {};
+      subs.forEach((s) => { map[s.assignmentId] = s; });
+      setSubmissionMap(map);
+      const stillPending = subs.some((s) =>
+        s.aiValidationStatus === 'QUESTION_GENERATING' ||
+        s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+      );
+      if (!stillPending) clearInterval(pollingRef.current);
+    }, 10000);
+    return () => clearInterval(pollingRef.current);
+  }, [submissionMap]);
 
   const logout = () => {
     localStorage.removeItem('cv_student_token');
