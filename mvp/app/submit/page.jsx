@@ -423,16 +423,26 @@ function SubmitInner() {
                 <span className="font-mono text-[11px] text-slate-500">
                   {code ? `${code.split('\n').length} lines` : ''}
                 </span>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="rounded-md border border-slate-600 bg-[#1e2433] px-2 py-1 font-mono text-[11px] text-slate-300 focus:border-teal-500 focus:outline-none"
-                >
-                  <option value="python">Python</option>
-                  <option value="c">C</option>
-                  <option value="cpp">C++</option>
-                  <option value="java">Java</option>
-                </select>
+                <div className="flex gap-1">
+                  {[
+                    { value: 'python', label: 'Python', active: 'bg-blue-500/20 text-blue-300 border-blue-500/50' },
+                    { value: 'c',      label: 'C',      active: 'bg-slate-500/30 text-slate-200 border-slate-400/50' },
+                    { value: 'cpp',    label: 'C++',    active: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' },
+                    { value: 'java',   label: 'Java',   active: 'bg-orange-500/20 text-orange-300 border-orange-500/50' },
+                  ].map(({ value, label, active }) => (
+                    <button
+                      key={value}
+                      onClick={() => setLanguage(value)}
+                      className={`rounded border px-2.5 py-1 font-mono text-[11px] font-bold transition-all ${
+                        language === value
+                          ? active
+                          : 'border-transparent text-slate-500 hover:text-slate-400'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <CodeEditor code={code} onChange={setCode} language={language} viewRef={editorViewRef} />
