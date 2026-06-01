@@ -1,8 +1,15 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSubmission, getSubmission } from '../../lib/api';
+import { EditorView } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { basicSetup } from '@codemirror/basic-setup';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { python } from '@codemirror/lang-python';
+import { cpp } from '@codemirror/lang-cpp';
+import { java } from '@codemirror/lang-java';
 
 const apiClient = async (path, token) => {
   const res = await fetch(`/api${path}`, {
@@ -53,6 +60,7 @@ function SubmitInner() {
   const [existingSubmissionId, setExistingSubmissionId] = useState(null);
   const [existingStatus, setExistingStatus] = useState(null);
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState('python');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -386,17 +394,23 @@ function SubmitInner() {
                 </div>
                 <span className="ml-1.5 font-mono text-[11px] text-slate-400">solution</span>
               </div>
-              <span className="font-mono text-[11px] text-slate-500">
-                {code ? `${code.split('\n').length} lines` : ''}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[11px] text-slate-500">
+                  {code ? `${code.split('\n').length} lines` : ''}
+                </span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="rounded-md border border-slate-600 bg-[#1e2433] px-2 py-1 font-mono text-[11px] text-slate-300 focus:border-teal-500 focus:outline-none"
+                >
+                  <option value="python">Python</option>
+                  <option value="c">C</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                </select>
+              </div>
             </div>
-            <textarea
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="// 구현한 코드를 여기에 붙여넣거나 직접 입력하세요"
-              className="flex-1 min-h-0 w-full resize-none overflow-y-auto bg-[#0d1117] p-5 font-mono text-[13px] leading-relaxed text-slate-300 placeholder-slate-600 focus:outline-none"
-              spellCheck={false}
-            />
+            <CodeEditor code={code} onChange={setCode} language={language} />
           </div>
         </div>
       </div>
@@ -427,6 +441,47 @@ function ErrorMsg({ children, className = '' }) {
       · {children}
     </p>
   );
+}
+
+const LANG_EXTENSIONS = {
+  python: () => python(),
+  c:      () => cpp(),
+  cpp:    () => cpp(),
+  java:   () => java(),
+};
+
+function CodeEditor({ code, onChange, language }) {
+  const containerRef = useRef(null);
+  const codeRef = useRef(code);
+
+  useEffect(() => { codeRef.current = code; }, [code]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const getLang = LANG_EXTENSIONS[language] ?? LANG_EXTENSIONS.python;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: codeRef.current,
+        extensions: [
+          basicSetup,
+          getLang(),
+          oneDark,
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onChange(update.state.doc.toString());
+          }),
+          EditorView.theme({
+            '&': { height: '100%', fontSize: '13px' },
+            '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, monospace' },
+            '.cm-content': { padding: '16px' },
+          }),
+        ],
+      }),
+      parent: containerRef.current,
+    });
+    return () => view.destroy();
+  }, [language, onChange]);
+
+  return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />;
 }
 
 export default function SubmitPage() {
