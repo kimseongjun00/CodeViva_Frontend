@@ -210,6 +210,12 @@ function SubmitInner() {
   const fmtDate = (iso) => iso
     ? new Date(iso).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '-';
+  const fmtDateOnly = (iso) => iso
+    ? new Date(iso).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
+    : '-';
+  const fmtTimeOnly = (iso) => iso
+    ? new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const studentId = user?.email?.replace('@codeviva.kr', '') ?? '';
   const isSubmitted = existingCode !== null;
@@ -230,7 +236,8 @@ function SubmitInner() {
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-slate-50 px-4 py-3.5">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">마감일</p>
-            <p className="mt-1.5 text-[13px] font-semibold text-slate-800">{fmtDate(assignment.dueAt)}</p>
+            <p className="mt-1.5 text-[13px] font-semibold text-slate-800">{fmtDateOnly(assignment.dueAt)}</p>
+            <p className="text-[12px] text-slate-500">{fmtTimeOnly(assignment.dueAt)}</p>
           </div>
           {assignment.score != null && (
             <div className="rounded-xl bg-slate-50 px-4 py-3.5">
@@ -302,7 +309,7 @@ function SubmitInner() {
       <Shell>
         <div className="mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden border-x border-slate-200 bg-white shadow-sm lg:flex-row">
           <AssignmentAside />
-          <div className="flex min-h-0 flex-1 flex-col px-8 py-8">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-8 py-8">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -342,7 +349,7 @@ function SubmitInner() {
                 </div>
                 <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">read only</span>
               </div>
-              <pre className="flex-1 overflow-y-auto bg-[#0d1117] p-5 font-mono text-[13px] leading-relaxed text-slate-300 whitespace-pre">
+              <pre className="flex-1 overflow-auto bg-[#0d1117] p-5 font-mono text-[13px] leading-relaxed text-slate-300 whitespace-pre">
                 {existingCode || '// 코드 내용 없음'}
               </pre>
             </div>
@@ -380,7 +387,7 @@ function SubmitInner() {
     <Shell step={1}>
       <div className="mx-auto flex w-full max-w-[1400px] flex-1 overflow-hidden border-x border-slate-200 bg-white shadow-sm lg:flex-row">
         <AssignmentAside />
-        <div className="flex min-h-0 flex-1 flex-col px-8 py-8">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col px-8 py-8">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <h3 className="text-[15px] font-bold text-slate-900">코드 제출</h3>

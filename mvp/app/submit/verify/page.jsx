@@ -1235,7 +1235,7 @@ function StudentAssignmentVerifyPage() {
                         });
                       }
                     }}
-                    className="min-h-0 flex-1 overflow-y-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap"
+                    className="min-h-0 flex-1 overflow-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre"
                   >{stripComments(submissionCode)}</pre>
                 </div>
               </div>
