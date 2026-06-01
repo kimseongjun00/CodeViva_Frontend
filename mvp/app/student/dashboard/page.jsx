@@ -189,7 +189,12 @@ export default function StudentDashboard() {
                           </span>
                         );
                       } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
-                        submitBadge = (
+                        const interviewStarted = sub?.id && typeof window !== 'undefined' && localStorage.getItem(`cv_interview_started_${sub.id}`);
+                        submitBadge = interviewStarted ? (
+                          <span className="inline-block whitespace-nowrap rounded-full bg-orange-50 px-2.5 py-0.5 text-[11px] font-bold text-orange-600 ring-1 ring-orange-200">
+                            인터뷰 중단됨
+                          </span>
+                        ) : (
                           <span className="inline-block whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-600 ring-1 ring-blue-200">
                             인터뷰 필요
                           </span>
@@ -217,8 +222,11 @@ export default function StudentDashboard() {
                           </Link>
                         );
                       } else if (aiStatus === 'AWAITING_AUDIO_ANSWERS') {
-                        actionBtn = (
-                          <Link href={href} className="inline-block whitespace-nowrap rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
+                        const interviewStarted = sub?.id && typeof window !== 'undefined' && localStorage.getItem(`cv_interview_started_${sub.id}`);
+                        actionBtn = interviewStarted ? (
+                          <span className="text-[11px] text-orange-400">재응시 불가</span>
+                        ) : (
+                          <Link href={`/submit/verify?submissionId=${sub.id}`} className="inline-block whitespace-nowrap rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
                             AI 인터뷰 하기
                           </Link>
                         );

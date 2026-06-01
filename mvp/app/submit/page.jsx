@@ -302,8 +302,11 @@ function SubmitInner() {
       EVALUATED:                  { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '제출 및 평가가 모두 완료되었습니다.' },
       EVALUATION_FAILED:          { badge: '제출완료',       badgeCls: 'bg-teal-50 text-[#146E7A]',   desc: '제출이 완료되었습니다.' },
     };
-    const cfg = STATUS_CFG[existingStatus] ?? { badge: '제출완료', badgeCls: 'bg-teal-50 text-[#146E7A]', desc: '제출된 코드는 수정할 수 없습니다.' };
-    const showInterviewBtn = existingStatus === 'AWAITING_AUDIO_ANSWERS' || existingStatus === 'QUESTION_GENERATION_FAILED';
+    const interviewStarted = existingSubmissionId && typeof window !== 'undefined' && localStorage.getItem(`cv_interview_started_${existingSubmissionId}`);
+    const showInterviewBtn = !interviewStarted && (existingStatus === 'AWAITING_AUDIO_ANSWERS' || existingStatus === 'QUESTION_GENERATION_FAILED');
+    const cfg = (interviewStarted && existingStatus === 'AWAITING_AUDIO_ANSWERS')
+      ? { badge: '인터뷰 중단됨', badgeCls: 'bg-orange-50 text-orange-600', desc: 'AI 인터뷰 진행 중 비정상 종료되었습니다. 재응시는 불가합니다.' }
+      : STATUS_CFG[existingStatus] ?? { badge: '제출완료', badgeCls: 'bg-teal-50 text-[#146E7A]', desc: '제출된 코드는 수정할 수 없습니다.' };
 
     return (
       <Shell>

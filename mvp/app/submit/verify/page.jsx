@@ -1329,11 +1329,19 @@ function StudentAssignmentVerifyPage() {
                 ) : (
                   <>
                     <div className="mb-3 flex justify-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                        <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                        </svg>
-                      </div>
+                      {submitError ? (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                          <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                          <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                          </svg>
+                        </div>
+                      )}
                     </div>
                     <h2 className="text-[20px] font-bold text-slate-900">{submitError ? '제출 오류' : '검증 완료'}</h2>
                     <p className="mt-1 text-[13px] text-slate-500">
