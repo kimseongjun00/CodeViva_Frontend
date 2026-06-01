@@ -292,8 +292,6 @@ function StudentAssignmentVerifyPage() {
         }
         const qs = sub.prompt1Questions ?? [];
         if (qs.length > 0) {
-          // 재접속 차단용: 질문을 받은 시점을 localStorage에 기록
-          localStorage.setItem(`cv_interview_started_${submissionId}`, '1');
           setQuestions(qs);
           questionsReadyRef.current = true;
           setLoadingQuestions(false);
@@ -599,6 +597,8 @@ function StudentAssignmentVerifyPage() {
 
 
   const handleSkipMicTest = () => {
+    // 인터뷰 실제 시작 시점에 재접속 차단 플래그 기록
+    if (submissionId) localStorage.setItem(`cv_interview_started_${submissionId}`, '1');
     setPhase('start-countdown');
     setCountdown(3);
   };
