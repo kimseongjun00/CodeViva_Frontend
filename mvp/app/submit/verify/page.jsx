@@ -115,7 +115,7 @@ const computeOverallRisk = (counts) => {
 /* ──────────────────────────────────────────────────────────
    렌즈 마스킹 컴포넌트 (직사각형)
 ────────────────────────────────────────────────────────── */
-const LensMaskedText = ({ children, lensW = 220, lensH = 110 }) => {
+const LensMaskedText = ({ children, lensW = 360, lensH = 110 }) => {
   const [pos, setPos] = React.useState({ x: -999, y: -999, cw: 0, ch: 0 });
   const containerRef = React.useRef(null);
 

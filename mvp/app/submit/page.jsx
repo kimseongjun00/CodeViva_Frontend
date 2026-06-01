@@ -9,6 +9,8 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
 import { java } from '@codemirror/lang-java';
+import { syntaxTree } from '@codemirror/language';
+import { linter, lintGutter } from '@codemirror/lint';
 
 const apiClient = async (path, token) => {
   const res = await fetch(`/api${path}`, {
@@ -62,6 +64,7 @@ function SubmitInner() {
   const [language, setLanguage] = useState('python');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const editorViewRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem('cv_student_token');
@@ -143,6 +146,19 @@ function SubmitInner() {
 
   const handleSubmit = async () => {
     if (!code.trim()) { setError('코드를 입력해주세요.'); return; }
+
+    // 제출 전 문법 오류 검사
+    if (editorViewRef.current) {
+      let hasError = false;
+      syntaxTree(editorViewRef.current.state).cursor().iterate((node) => {
+        if (node.type.isError) { hasError = true; return false; }
+      });
+      if (hasError) {
+        setError('코드에 문법 오류가 있습니다. 빨간 밑줄이 표시된 부분을 수정 후 다시 제출해주세요.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     setError('');
     try {
@@ -409,7 +425,7 @@ function SubmitInner() {
                 </select>
               </div>
             </div>
-            <CodeEditor code={code} onChange={setCode} language={language} />
+            <CodeEditor code={code} onChange={setCode} language={language} viewRef={editorViewRef} />
           </div>
         </div>
       </div>
@@ -449,7 +465,22 @@ const LANG_EXTENSIONS = {
   java:   () => java(),
 };
 
-function CodeEditor({ code, onChange, language }) {
+const syntaxErrorLinter = linter((view) => {
+  const diagnostics = [];
+  syntaxTree(view.state).cursor().iterate((node) => {
+    if (node.type.isError) {
+      diagnostics.push({
+        from: node.from,
+        to: Math.max(node.to, node.from + 1),
+        severity: 'error',
+        message: '문법 오류',
+      });
+    }
+  });
+  return diagnostics;
+});
+
+function CodeEditor({ code, onChange, language, viewRef }) {
   const containerRef = useRef(null);
   const codeRef = useRef(code);
 
@@ -465,6 +496,7 @@ function CodeEditor({ code, onChange, language }) {
           basicSetup,
           getLang(),
           oneDark,
+          syntaxErrorLinter,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange(update.state.doc.toString());
           }),
@@ -477,7 +509,11 @@ function CodeEditor({ code, onChange, language }) {
       }),
       parent: containerRef.current,
     });
-    return () => view.destroy();
+    if (viewRef) viewRef.current = view;
+    return () => {
+      view.destroy();
+      if (viewRef) viewRef.current = null;
+    };
   }, [language, onChange]);
 
   return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />;
