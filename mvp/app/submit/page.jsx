@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createSubmission, getSubmission } from '../../lib/api';
-import { EditorView } from '@codemirror/view';
+import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
-import { basicSetup } from '@codemirror/basic-setup';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
