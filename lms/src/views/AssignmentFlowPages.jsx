@@ -1,4 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { EditorView, basicSetup } from 'codemirror';
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { python } from '@codemirror/lang-python';
+import { cpp } from '@codemirror/lang-cpp';
+import { java } from '@codemirror/lang-java';
+import { syntaxTree } from '@codemirror/language';
+import { linter } from '@codemirror/lint';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCourse } from '../context/CourseContext';
@@ -65,6 +73,13 @@ const formatDateDisplay = (iso) => {
     minute: '2-digit',
   });
 };
+
+const fmtDateOnly = (iso) => iso
+  ? new Date(iso).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
+  : '-';
+const fmtTimeOnly = (iso) => iso
+  ? new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+  : '';
 
 const isoToLocalInput = (iso) => {
   if (!iso) return '';
@@ -566,8 +581,10 @@ export const StudentAssignmentSubmitPage = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState('python');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const editorViewRef = useRef(null);
 
   useEffect(() => {
     if (!assignmentId) return;
@@ -586,6 +603,16 @@ export const StudentAssignmentSubmitPage = () => {
     if (!code.trim()) {
       setError('코드를 입력해주세요.');
       return;
+    }
+    if (editorViewRef.current) {
+      let hasError = false;
+      syntaxTree(editorViewRef.current.state).cursor().iterate((node) => {
+        if (node.type.isError) { hasError = true; return false; }
+      });
+      if (hasError) {
+        setError('코드에 문법 오류가 있습니다. 빨간 밑줄 부분을 수정 후 다시 제출해주세요.');
+        return;
+      }
     }
     setSubmitting(true);
     setError('');
@@ -659,7 +686,8 @@ export const StudentAssignmentSubmitPage = () => {
                 <div>
                   <label className="mb-1 block text-xs font-bold text-slate-700">공개일 - 마감일</label>
                   <div className="rounded border border-slate-200 bg-[#f3f3f3] px-3 py-2 text-xs text-[#1a6d7e]">
-                    {formatDateDisplay(assignment.openAt)} ~ {formatDateDisplay(assignment.dueAt)}
+                    {fmtDateOnly(assignment.openAt)} ~ {fmtDateOnly(assignment.dueAt)}
+                    <span className="ml-2 text-slate-400">({fmtTimeOnly(assignment.openAt)} ~ {fmtTimeOnly(assignment.dueAt)})</span>
                   </div>
                 </div>
                 <div>
@@ -694,22 +722,37 @@ export const StudentAssignmentSubmitPage = () => {
             <label className="mb-1.5 block text-xs font-bold text-slate-700">
               제출 코드 <span className="text-red-500">*</span>
             </label>
-            <div className="overflow-hidden rounded border border-slate-700 bg-slate-900">
-              <div className="flex items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
-                <span className="font-mono text-xs text-slate-400">코드 입력</span>
-                <div className="flex gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
+            <div className="flex h-72 flex-col overflow-hidden rounded border border-slate-700 bg-slate-900">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
+                  </div>
+                  <span className="ml-1 font-mono text-xs text-slate-400">solution</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-slate-500">{code ? `${code.split('\n').length} lines` : ''}</span>
+                  <div className="flex gap-0.5">
+                    {[
+                      { value: 'python', label: 'Python', active: 'bg-blue-500/20 text-blue-300 border-blue-500/50' },
+                      { value: 'c',      label: 'C',      active: 'bg-slate-500/30 text-slate-200 border-slate-400/50' },
+                      { value: 'cpp',    label: 'C++',    active: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' },
+                      { value: 'java',   label: 'Java',   active: 'bg-orange-500/20 text-orange-300 border-orange-500/50' },
+                    ].map(({ value, label, active }) => (
+                      <button
+                        key={value}
+                        onClick={() => setLanguage(value)}
+                        className={`rounded border px-2 py-0.5 font-mono text-[10px] font-bold transition-all ${language === value ? active : 'border-transparent text-slate-500 hover:text-slate-400'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <textarea
-                className="h-60 w-full resize-none bg-transparent p-4 font-mono text-xs leading-relaxed text-slate-300 focus:outline-none"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="// 구현한 코드를 여기에 붙여넣거나 직접 입력하세요"
-                spellCheck={false}
-              />
+              <CodeEditor code={code} onChange={setCode} language={language} viewRef={editorViewRef} />
             </div>
           </div>
 
@@ -798,6 +841,8 @@ export const StudentAssignmentVerifyPage = () => {
   const [submissionCode, setSubmissionCode] = useState(MOCK_CODE);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [interviewBlocked, setInterviewBlocked] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [securityWarning, setSecurityWarning] = useState('');
 
   const waveformBars = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
@@ -857,6 +902,11 @@ export const StudentAssignmentVerifyPage = () => {
   useEffect(() => {
     if (!submissionId) {
       setQuestions(MOCK_QUESTIONS);
+      setLoadingQuestions(false);
+      return;
+    }
+    if (localStorage.getItem(`cv_interview_started_${submissionId}`)) {
+      setInterviewBlocked(true);
       setLoadingQuestions(false);
       return;
     }
@@ -1167,6 +1217,7 @@ export const StudentAssignmentVerifyPage = () => {
   }, [phase]);
 
   const handleSkipMicTest = () => {
+    if (submissionId) localStorage.setItem(`cv_interview_started_${submissionId}`, '1');
     setPhase('start-countdown');
     setCountdown(3);
   };
@@ -1300,6 +1351,8 @@ export const StudentAssignmentVerifyPage = () => {
       });
     } catch (e) {
       console.error('[CodeViva] 음성 답변 제출 실패:', e?.message, e?.body);
+      if (submissionId) localStorage.removeItem(`cv_interview_started_${submissionId}`);
+      setSubmitError('답변 제출에 실패했습니다. 대시보드에서 다시 시도해주세요.');
     } finally {
       // 부정행위 로그 콘솔 출력 (백엔드 연동 시 별도 API로 전송)
       console.info('[CodeViva Security Log]', {
@@ -1380,6 +1433,26 @@ export const StudentAssignmentVerifyPage = () => {
       finalize(new Blob([], { type: 'audio/webm' }));
     }
   }, [answerLockSeconds, questionIndex, questions.length, submitAllAnswers]);
+
+  if (interviewBlocked) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 px-4 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-900/50">
+          <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+        </div>
+        <p className="mb-1 text-base font-bold text-red-400">재응시 불가</p>
+        <p className="text-sm text-slate-400">이미 AI 검증 인터뷰가 시작된 제출입니다.<br/>중도 이탈 후 재응시는 허용되지 않습니다.</p>
+        <button
+          onClick={() => navigate('/student/assignment-list')}
+          className="mt-6 rounded-lg border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+        >
+          목록으로 돌아가기
+        </button>
+      </div>
+    );
+  }
 
   if (loadError) {
     return (
@@ -1730,7 +1803,7 @@ export const StudentAssignmentVerifyPage = () => {
                         });
                       }
                     }}
-                    className="min-h-0 flex-1 overflow-y-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap"
+                    className="min-h-0 flex-1 overflow-auto p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre"
                   >{stripComments(submissionCode)}</pre>
                 </div>
               </div>
@@ -1816,12 +1889,18 @@ export const StudentAssignmentVerifyPage = () => {
           {/* 완료 */}
           {phase === 'done' && (
             <div className="m-auto flex max-w-md flex-col items-center justify-center rounded-3xl border border-slate-100 bg-white p-10 text-center shadow-xl">
-              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-teal-50">
-                <span className="text-4xl"></span>
+              <div className={`mb-6 flex h-20 w-20 items-center justify-center rounded-full ${submitError ? 'bg-red-50' : 'bg-teal-50'}`}>
+                {submitError ? (
+                  <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                ) : (
+                  <span className="text-4xl"></span>
+                )}
               </div>
-              <h3 className="mb-2 text-2xl font-bold text-slate-800">검증이 완료되었습니다</h3>
+              <h3 className="mb-2 text-2xl font-bold text-slate-800">{submitError ? '제출 오류' : '검증이 완료되었습니다'}</h3>
               <p className="mb-4 leading-relaxed text-slate-500">
-                수고하셨습니다. 모든 답변이 정상적으로 서버에 기록되었습니다.
+                {submitError ? submitError : '수고하셨습니다. 모든 답변이 정상적으로 서버에 기록되었습니다.'}
               </p>
               {/* 보안 로그 요약 */}
               {(() => {
@@ -1926,50 +2005,115 @@ export const StudentAssignmentVerifyPage = () => {
 };
 
 /* ──────────────────────────────────────────────────────────
+   코드 에디터 (CodeMirror 6)
+────────────────────────────────────────────────────────── */
+const LANG_EXTENSIONS = {
+  python: () => python(),
+  c:      () => cpp(),
+  cpp:    () => cpp(),
+  java:   () => java(),
+};
+
+const syntaxErrorLinter = linter((view) => {
+  const diagnostics = [];
+  syntaxTree(view.state).cursor().iterate((node) => {
+    if (node.type.isError) {
+      diagnostics.push({
+        from: node.from,
+        to: Math.max(node.to, node.from + 1),
+        severity: 'error',
+        message: '문법 오류',
+      });
+    }
+  });
+  return diagnostics;
+});
+
+function CodeEditor({ code, onChange, language, viewRef }) {
+  const containerRef = useRef(null);
+  const codeRef = useRef(code);
+
+  useEffect(() => { codeRef.current = code; }, [code]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const getLang = LANG_EXTENSIONS[language] ?? LANG_EXTENSIONS.python;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: codeRef.current,
+        extensions: [
+          basicSetup,
+          getLang(),
+          oneDark,
+          syntaxErrorLinter,
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onChange(update.state.doc.toString());
+          }),
+          EditorView.theme({
+            '&': { height: '100%', fontSize: '12px' },
+            '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, monospace' },
+            '.cm-content': { padding: '12px' },
+          }),
+        ],
+      }),
+      parent: containerRef.current,
+    });
+    if (viewRef) viewRef.current = view;
+    return () => {
+      view.destroy();
+      if (viewRef) viewRef.current = null;
+    };
+  }, [language, onChange]);
+
+  return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />;
+}
+
+/* ──────────────────────────────────────────────────────────
    렌즈 마스킹 컴포넌트
 ────────────────────────────────────────────────────────── */
-const LensMaskedText = ({ children, lensRadius = 90 }) => {
-  const [pos, setPos] = React.useState({ x: -999, y: -999 });
+const LensMaskedText = ({ children, lensW = 360, lensH = 110 }) => {
+  const [pos, setPos] = React.useState({ x: -999, y: -999, cw: 0, ch: 0 });
   const containerRef = React.useRef(null);
 
   const handleMouseMove = (e) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setPos({ x: e.clientX - rect.left, y: e.clientY - rect.top, cw: rect.width, ch: rect.height });
   };
+
+  const { x, y, cw, ch } = pos;
+  const top    = y - lensH / 2;
+  const right  = cw - x - lensW / 2;
+  const bottom = ch - y - lensH / 2;
+  const left   = x - lensW / 2;
 
   return (
     <div
       ref={containerRef}
       className="relative select-none overflow-hidden"
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => setPos({ x: -999, y: -999 })}
+      onMouseLeave={() => setPos({ x: -999, y: -999, cw: 0, ch: 0 })}
     >
       {/* 블러 레이어 */}
       <div style={{ filter: 'blur(9px)', userSelect: 'none', pointerEvents: 'none' }}>
         {children}
       </div>
-      {/* 렌즈 (커서 위치만 선명하게) */}
+      {/* 렌즈 (직사각형) */}
       <div
         className="absolute inset-0"
         style={{
-          clipPath: `circle(${lensRadius}px at ${pos.x}px ${pos.y}px)`,
+          clipPath: x > 0 ? `inset(${top}px ${right}px ${bottom}px ${left}px round 6px)` : 'inset(100%)',
           userSelect: 'none',
           pointerEvents: 'none',
         }}
       >
         {children}
       </div>
-      {/* 렌즈 테두리 효과 */}
-      {pos.x > 0 && (
+      {/* 렌즈 테두리 */}
+      {x > 0 && (
         <div
-          className="pointer-events-none absolute rounded-full border border-teal-400/30 shadow-[0_0_12px_rgba(45,212,191,0.15)]"
-          style={{
-            width: lensRadius * 2,
-            height: lensRadius * 2,
-            left: pos.x - lensRadius,
-            top: pos.y - lensRadius,
-          }}
+          className="pointer-events-none absolute rounded-md border border-teal-400/40 shadow-[0_0_14px_rgba(45,212,191,0.18)]"
+          style={{ width: lensW, height: lensH, left: x - lensW / 2, top: y - lensH / 2 }}
         />
       )}
     </div>

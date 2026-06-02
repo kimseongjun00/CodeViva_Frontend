@@ -1,6 +1,59 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createSubmission } from '../../api/submissions';
+import { EditorView, basicSetup } from 'codemirror';
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { python } from '@codemirror/lang-python';
+import { cpp } from '@codemirror/lang-cpp';
+import { java } from '@codemirror/lang-java';
+import { syntaxTree } from '@codemirror/language';
+import { linter } from '@codemirror/lint';
+
+const LANG_EXTENSIONS = {
+  python: () => python(),
+  c:      () => cpp(),
+  cpp:    () => cpp(),
+  java:   () => java(),
+};
+
+const syntaxErrorLinter = linter((view) => {
+  const diagnostics = [];
+  syntaxTree(view.state).cursor().iterate((node) => {
+    if (node.type.isError) {
+      diagnostics.push({ from: node.from, to: Math.max(node.to, node.from + 1), severity: 'error', message: '문법 오류' });
+    }
+  });
+  return diagnostics;
+});
+
+function CodeEditor({ code, onChange, language, viewRef }) {
+  const containerRef = useRef(null);
+  const codeRef = useRef(code);
+  useEffect(() => { codeRef.current = code; }, [code]);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const getLang = LANG_EXTENSIONS[language] ?? LANG_EXTENSIONS.python;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: codeRef.current,
+        extensions: [
+          basicSetup, getLang(), oneDark, syntaxErrorLinter,
+          EditorView.updateListener.of((u) => { if (u.docChanged) onChange(u.state.doc.toString()); }),
+          EditorView.theme({
+            '&': { height: '100%', fontSize: '13px' },
+            '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, monospace' },
+            '.cm-content': { padding: '14px' },
+          }),
+        ],
+      }),
+      parent: containerRef.current,
+    });
+    if (viewRef) viewRef.current = view;
+    return () => { view.destroy(); if (viewRef) viewRef.current = null; };
+  }, [language, onChange]);
+  return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />;
+}
 
 const GRADES = ['1', '2', '3', '4'];
 const DEPARTMENTS = [
@@ -32,9 +85,11 @@ const SubmitPage = () => {
     grade: '1',
   });
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState('python');
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const editorViewRef = useRef(null);
 
   const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
 
@@ -50,6 +105,17 @@ const SubmitPage = () => {
   const handleSubmit = async () => {
     const err = validate();
     if (err) { setError(err); return; }
+
+    if (editorViewRef.current) {
+      let hasError = false;
+      syntaxTree(editorViewRef.current.state).cursor().iterate((node) => {
+        if (node.type.isError) { hasError = true; return false; }
+      });
+      if (hasError) {
+        setError('코드에 문법 오류가 있습니다. 빨간 밑줄 부분을 수정 후 다시 제출해주세요.');
+        return;
+      }
+    }
 
     setSubmitting(true);
     setError('');
@@ -161,13 +227,39 @@ const SubmitPage = () => {
 
             {/* 코드 입력 */}
             <Field label="제출 코드" required>
-              <textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="구현한 코드를 여기에 붙여넣으세요..."
-                className="h-64 w-full rounded-lg border border-slate-300 p-3 font-mono text-sm leading-relaxed focus:border-[#1a6d7e] focus:outline-none focus:ring-1 focus:ring-[#1a6d7e]"
-                spellCheck={false}
-              />
+              <div className="flex h-72 flex-col overflow-hidden rounded-lg border border-slate-300 focus-within:border-[#1a6d7e] focus-within:ring-1 focus-within:ring-[#1a6d7e]">
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-red-500/70" />
+                      <span className="h-2 w-2 rounded-full bg-yellow-400/70" />
+                      <span className="h-2 w-2 rounded-full bg-green-500/70" />
+                    </div>
+                    <span className="font-mono text-[11px] text-slate-400">solution</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-slate-500">{code ? `${code.split('\n').length} lines` : ''}</span>
+                    <div className="flex gap-0.5">
+                      {[
+                        { value: 'python', label: 'Python', active: 'bg-blue-500/20 text-blue-300 border-blue-500/50' },
+                        { value: 'c',      label: 'C',      active: 'bg-slate-500/30 text-slate-200 border-slate-400/50' },
+                        { value: 'cpp',    label: 'C++',    active: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' },
+                        { value: 'java',   label: 'Java',   active: 'bg-orange-500/20 text-orange-300 border-orange-500/50' },
+                      ].map(({ value, label, active }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setLanguage(value)}
+                          className={`rounded border px-2 py-0.5 font-mono text-[10px] font-bold transition-all ${language === value ? active : 'border-transparent text-slate-500 hover:text-slate-400'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <CodeEditor code={code} onChange={setCode} language={language} viewRef={editorViewRef} />
+              </div>
             </Field>
 
             {/* 파일 첨부 */}
