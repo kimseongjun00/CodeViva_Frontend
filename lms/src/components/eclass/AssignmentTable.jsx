@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCourse } from '../../context/CourseContext';
@@ -30,6 +30,32 @@ const getStatus = (openAt, dueAt) => {
 
 const GRADE_LABEL = { GRADE_1: 'A', GRADE_2: 'B', GRADE_3: 'C', GRADE_4: 'D', GRADE_5: 'F' };
 
+const SubmitBadge = ({ sub }) => {
+  if (!sub) return <span className="rounded-sm bg-[#e8e8e8] px-1.5 py-0.5 text-[11px] text-gray-400">미제출</span>;
+  const ai = sub.aiValidationStatus;
+  if (ai === 'QUESTION_GENERATING') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-sm bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-600 ring-1 ring-amber-200">
+        <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        질문 생성 중
+      </span>
+    );
+  }
+  if (ai === 'QUESTION_GENERATION_FAILED') {
+    return <span className="rounded-sm bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-500 ring-1 ring-red-200">인터뷰 필요</span>;
+  }
+  if (ai === 'AWAITING_AUDIO_ANSWERS') {
+    const started = sub.id && localStorage.getItem(`cv_interview_started_${sub.id}`);
+    return started
+      ? <span className="rounded-sm bg-orange-50 px-1.5 py-0.5 text-[11px] font-semibold text-orange-600 ring-1 ring-orange-200">인터뷰 중단됨</span>
+      : <span className="rounded-sm bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-[#1a6d7e] ring-1 ring-[#1a6d7e]/30">인터뷰 필요</span>;
+  }
+  return <span className="rounded-sm bg-[#e8f4f6] px-1.5 py-0.5 text-[11px] font-semibold text-[#1a6d7e]">제출완료</span>;
+};
+
 const AssignmentTable = ({ role }) => {
   const { user } = useAuth();
   const { selectedCourse } = useCourse();
@@ -42,6 +68,7 @@ const AssignmentTable = ({ role }) => {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     if (!selectedCourse?.id) return;
@@ -65,6 +92,29 @@ const AssignmentTable = ({ role }) => {
       .catch(() => setError('과제 목록을 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [selectedCourse?.id, isInstructor]);
+
+  // 질문 생성 중 / 인터뷰 대기 상태일 때 10초마다 폴링
+  useEffect(() => {
+    if (isInstructor) return;
+    clearInterval(pollingRef.current);
+    const needsPoll = Object.values(submissionMap).some((s) =>
+      s.aiValidationStatus === 'QUESTION_GENERATING' ||
+      s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+    );
+    if (!needsPoll) return;
+    pollingRef.current = setInterval(async () => {
+      const subs = await getMySubmissions().catch(() => []);
+      const map = {};
+      subs.forEach((s) => { map[s.assignmentId] = s; });
+      setSubmissionMap(map);
+      const stillPending = subs.some((s) =>
+        s.aiValidationStatus === 'QUESTION_GENERATING' ||
+        s.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS'
+      );
+      if (!stillPending) clearInterval(pollingRef.current);
+    }, 10000);
+    return () => clearInterval(pollingRef.current);
+  }, [submissionMap, isInstructor]);
 
   const filtered = assignments.filter((a) =>
     a.title?.toLowerCase().includes(search.toLowerCase()),
@@ -173,7 +223,7 @@ const AssignmentTable = ({ role }) => {
                       </td>
                       <td className="py-2.5">{status}</td>
                       <td className="py-2.5">
-                        {isInstructor ? '-' : sub ? '제출' : '미제출'}
+                        {isInstructor ? '-' : <SubmitBadge sub={sub} />}
                       </td>
                       <td className="py-2.5">
                         {isInstructor ? '-' : grade ?? '-'}
