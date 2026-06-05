@@ -2103,10 +2103,10 @@ export const StudentAssignmentVerifyPage = () => {
 
                 <button
                   onClick={handleAnswerComplete}
-                  disabled={answerLockSeconds > 0}
-                  className={`rounded-xl px-8 py-3.5 text-base font-bold transition-all ${answerLockSeconds > 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95'}`}
+                  disabled={answerLockSeconds > 0 || submitting}
+                  className={`rounded-xl px-8 py-3.5 text-base font-bold transition-all ${answerLockSeconds > 0 || submitting ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95'}`}
                 >
-                  {answerLockSeconds > 0 ? `답변 완료 (${answerLockSeconds}s 최소)` : '답변 완료 및 다음'}
+                  {submitting ? '제출 중...' : answerLockSeconds > 0 ? `답변 완료 (${answerLockSeconds}s 최소)` : '답변 완료 및 다음'}
                 </button>
               </div>
             </div>
