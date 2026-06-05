@@ -19,6 +19,7 @@ import {
 } from '../api/assignments';
 import { createSubmission, getSubmissionsByAssignment, getSubmission, getMySubmissions, evaluateSubmission } from '../api/submissions';
 import { saveBatchAnswers, getAnswersBySubmission } from '../api/submissionAnswers';
+import { getCourseUsers } from '../api/courseUsers';
 import Header from '../components/eclass/Header';
 import GlobalNav from '../components/eclass/GlobalNav';
 import MainLayout from '../components/eclass/MainLayout';
@@ -319,29 +320,39 @@ export const InstructorAssignmentDetailPage = () => {
   const [loadingAnswers, setLoadingAnswers] = useState(new Set());
   const [evalStatus, setEvalStatus] = useState('idle'); // 'idle'|'triggering'|'running'|'done'
   const [evalError, setEvalError] = useState('');
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
   const evalPollingRef = useRef(null);
 
   useEffect(() => {
     if (!assignmentId) return;
     setLoading(true);
-    Promise.all([
-      getAssignment(assignmentId),
-      getSubmissionsByAssignment(assignmentId),
-    ])
-      .then(([a, subs]) => {
-        setAssignment(a);
-        setForm({
-          title: a.title ?? '',
-          openAt: isoToLocalInput(a.openAt),
-          dueAt: isoToLocalInput(a.dueAt),
-          score: a.score != null ? String(a.score) : '',
-          description: a.description ?? '',
-          attachmentFile: null,
-          attachmentOriginalName: a.attachmentOriginalName ?? '',
-          removeAttachment: false,
-        });
-        setSubmissions(subs);
-      })
+    const load = async () => {
+      const [a, subs] = await Promise.all([
+        getAssignment(assignmentId),
+        getSubmissionsByAssignment(assignmentId),
+      ]);
+      setAssignment(a);
+      setForm({
+        title: a.title ?? '',
+        openAt: isoToLocalInput(a.openAt),
+        dueAt: isoToLocalInput(a.dueAt),
+        score: a.score != null ? String(a.score) : '',
+        description: a.description ?? '',
+        attachmentFile: null,
+        attachmentOriginalName: a.attachmentOriginalName ?? '',
+        removeAttachment: false,
+      });
+      setSubmissions(subs);
+      if (a.courseId) {
+        const courseUsers = await getCourseUsers(a.courseId).catch(() => []);
+        setEnrolledStudents(
+          Array.isArray(courseUsers)
+            ? courseUsers.filter((cu) => (cu.courseRole ?? cu.role ?? '').toUpperCase() === 'STUDENT')
+            : []
+        );
+      }
+    };
+    load()
       .catch(() => setError('데이터를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [assignmentId]);
@@ -483,7 +494,7 @@ export const InstructorAssignmentDetailPage = () => {
                   : 'text-gray-500 hover:text-[#1a6d7e]'
               }`}
             >
-              {tab === 'detail' ? '과제 상세 정보' : `제출 현황 (${submissions.length})`}
+              {tab === 'detail' ? '과제 상세 정보' : `제출 현황 (${submissions.length}${enrolledStudents.length > 0 ? `/${enrolledStudents.length}` : ''})`}
             </button>
           ))}
         </div>
@@ -548,6 +559,7 @@ export const InstructorAssignmentDetailPage = () => {
             <SubmissionDashboard
               assignment={assignment}
               submissions={submissions}
+              enrolledStudents={enrolledStudents}
               selectedRows={selectedRows}
               allChecked={allChecked}
               toggleRow={toggleRow}
@@ -995,6 +1007,7 @@ export const StudentAssignmentVerifyPage = () => {
   const codePreRef = useRef(null);
   const cursorZoneLogRef = useRef([]);   // { zone, questionIndex, enterAt, exitAt, duration }
   const currentZoneRef = useRef(null);
+  const hasSubmittedRef = useRef(false);
   const zoneEnterTimeRef = useRef(null);
 
   // 질문 로드 — QUESTION_GENERATING 상태면 3초마다 폴링
@@ -1441,6 +1454,8 @@ export const StudentAssignmentVerifyPage = () => {
   }, [questionIndex]);
 
   const submitAllAnswers = useCallback(async () => {
+    if (hasSubmittedRef.current) return;
+    hasSubmittedRef.current = true;
     setSubmitting(true);
     try {
       await saveBatchAnswers({
@@ -1451,6 +1466,7 @@ export const StudentAssignmentVerifyPage = () => {
     } catch (e) {
       console.error('[CodeViva] 음성 답변 제출 실패:', e?.message, e?.body);
       if (submissionId) localStorage.removeItem(`cv_interview_started_${submissionId}`);
+      hasSubmittedRef.current = false;
       setSubmitError('답변 제출에 실패했습니다. 대시보드에서 다시 시도해주세요.');
     } finally {
       // 부정행위 로그 콘솔 출력 (백엔드 연동 시 별도 API로 전송)
@@ -2392,12 +2408,51 @@ const EVAL_STATUS_BADGE = {
 };
 const getEvalBadge = (status) => EVAL_STATUS_BADGE[status] || { label: '미제출', cls: 'bg-slate-100 text-slate-400' };
 
+const STATUS_GROUP = {
+  notSubmitted:   { label: '미제출',     cls: 'bg-slate-100 text-slate-500' },
+  generating:     { label: '질문 생성 중', cls: 'bg-purple-50 text-purple-600' },
+  awaitInterview: { label: '인터뷰 대기', cls: 'bg-amber-50 text-amber-600' },
+  inInterview:    { label: '인터뷰 중',  cls: 'bg-blue-50 text-blue-600' },
+  awaitEval:      { label: '평가 대기',  cls: 'bg-orange-50 text-orange-600' },
+  done:           { label: '평가 완료',  cls: 'bg-emerald-50 text-emerald-600' },
+  failed:         { label: '실패',       cls: 'bg-red-50 text-red-500' },
+};
+
+const getStatusGroup = (row) => {
+  if (row._notSubmitted) return 'notSubmitted';
+  switch (row.aiValidationStatus) {
+    case 'SUBMITTED':
+    case 'QUESTION_GENERATING':      return 'generating';
+    case 'QUESTIONS_READY':
+    case 'AWAITING_AUDIO_ANSWERS':   return 'awaitInterview';
+    case 'INTERVIEW_IN_PROGRESS':    return 'inInterview';
+    case 'AWAITING_EVALUATION':
+    case 'EVALUATING':               return 'awaitEval';
+    case 'EVALUATED':                return 'done';
+    case 'QUESTION_GENERATION_FAILED':
+    case 'EVALUATION_FAILED':        return 'failed';
+    default:                         return 'generating';
+  }
+};
+
 const SubmissionDashboard = ({
-  assignment, submissions, selectedRows, allChecked, toggleRow, toggleAll,
+  assignment, submissions, enrolledStudents, selectedRows, allChecked, toggleRow, toggleAll,
   answersMap, setAnswersMap, expandedRow, setExpandedRow, loadingAnswers, setLoadingAnswers,
   evalStatus, evalError, onStartEval, onRefreshSubmissions,
 }) => {
   const [subPage, setSubPage] = useState(1);
+
+  const mergedRows = useMemo(() => {
+    if (!enrolledStudents || enrolledStudents.length === 0) return submissions;
+    const subByUserId = Object.fromEntries(submissions.map((s) => [String(s.userId), s]));
+    return enrolledStudents.map((cu) =>
+      subByUserId[String(cu.userId)] ?? {
+        userId: cu.userId,
+        userName: cu.userName ?? cu.name ?? String(cu.userId),
+        _notSubmitted: true,
+      }
+    );
+  }, [enrolledStudents, submissions]);
 
   const handleToggleRow = async (subId) => {
     if (expandedRow === subId) { setExpandedRow(null); return; }
@@ -2426,12 +2481,16 @@ const SubmissionDashboard = ({
     });
   }, [submissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const totalCount = mergedRows.length;
+  const notSubmittedCount = mergedRows.filter((r) => r._notSubmitted).length;
+  const awaitInterviewCount = mergedRows.filter((r) => getStatusGroup(r) === 'awaitInterview' || getStatusGroup(r) === 'inInterview').length;
+  const awaitEvalCount = mergedRows.filter((r) => getStatusGroup(r) === 'awaitEval').length;
+  const verifiedCount = mergedRows.filter((r) => getStatusGroup(r) === 'done').length;
+
   const gradeCounts = { GRADE_1: 0, GRADE_2: 0, GRADE_3: 0, GRADE_4: 0, GRADE_5: 0 };
-  let verifiedCount = 0;
   submissions.forEach((sub) => {
-    if (sub.aiValidationStatus === 'EVALUATED') {
-      verifiedCount++;
-      if (sub.grade && gradeCounts[sub.grade] !== undefined) gradeCounts[sub.grade]++;
+    if (sub.aiValidationStatus === 'EVALUATED' && sub.grade && gradeCounts[sub.grade] !== undefined) {
+      gradeCounts[sub.grade]++;
     }
   });
 
@@ -2503,23 +2562,48 @@ const SubmissionDashboard = ({
       </div>
 
       {/* 요약 카드 */}
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
-          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">총 제출</div>
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="rounded border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold text-slate-400">전체</div>
           <div className="flex items-baseline gap-1">
-            <div className="text-xl font-extrabold text-slate-800">{submissions.length}</div>
+            <div className="text-xl font-extrabold text-slate-800">{totalCount}</div>
             <div className="text-[11px] text-slate-400">명</div>
           </div>
         </div>
-        <div className="rounded border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-3 shadow-sm">
-          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-400">검증 완료</div>
+        <div className="rounded border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold text-slate-400">미제출</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-xl font-extrabold text-slate-500">{notSubmittedCount}</div>
+            <div className="text-[11px] text-slate-400">명</div>
+          </div>
+        </div>
+        <div className="rounded border border-amber-100 bg-amber-50 p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold text-amber-500">인터뷰 대기</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-xl font-extrabold text-amber-700">{awaitInterviewCount}</div>
+            <div className="text-[11px] text-amber-400">명</div>
+          </div>
+        </div>
+        <div className="rounded border border-orange-100 bg-orange-50 p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold text-orange-500">평가 대기</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-xl font-extrabold text-orange-700">{awaitEvalCount}</div>
+            <div className="text-[11px] text-orange-400">명</div>
+          </div>
+        </div>
+        <div className="rounded border border-teal-100 bg-teal-50 p-3 shadow-sm">
+          <div className="mb-0.5 text-[10px] font-semibold text-teal-500">평가 완료</div>
           <div className="flex items-baseline gap-1">
             <div className="text-xl font-extrabold text-teal-700">{verifiedCount}</div>
             <div className="text-[11px] text-teal-400">명</div>
           </div>
         </div>
-        <div className="col-span-2 rounded border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 shadow-sm">
-          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">검증 결과 분포</div>
+      </div>
+
+      {/* 등급 분포 */}
+      {verifiedCount > 0 && (
+        <div className="mb-4 rounded border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">검증 결과 분포</div>
           <div className="flex items-end gap-2 h-10">
             {GRADE_ORDER.map((grade) => {
               const cfg = GRADE_CONFIG[grade];
@@ -2537,9 +2621,9 @@ const SubmissionDashboard = ({
             })}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* 제출 목록 */}
+      {/* 학생 목록 */}
       <div className="overflow-x-auto rounded border border-slate-200 shadow-sm">
         <table className="w-full text-left text-xs">
           <thead className="border-b border-slate-200 bg-[#f3f3f3]">
@@ -2558,10 +2642,10 @@ const SubmissionDashboard = ({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {(() => {
-              const pagedSubs = submissions.slice((subPage-1)*SUB_PAGE_SIZE, subPage*SUB_PAGE_SIZE);
-              return submissions.length === 0 ? (
+              const pagedSubs = mergedRows.slice((subPage-1)*SUB_PAGE_SIZE, subPage*SUB_PAGE_SIZE);
+              return mergedRows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center">
+                <td colSpan={8} className="px-4 py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-slate-400">
                     <span className="text-4xl"></span>
                     <span className="text-sm">아직 제출된 과제가 없습니다</span>
@@ -2577,6 +2661,26 @@ const SubmissionDashboard = ({
                 const risk = computeSecurityRisk(sub);
                 const riskCfg = risk ? RISK_CFG[risk.overall] : null;
                 const sortedAnswers = answers ? [...answers].sort((a, b) => (a.questionOrder ?? 0) - (b.questionOrder ?? 0)) : [];
+
+                if (sub._notSubmitted) {
+                  return (
+                    <tr key={`ns-${sub.userId}`} className="opacity-60">
+                      <td className="px-3 py-2 text-center text-slate-300">—</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold text-slate-600">{sub.userName}</div>
+                        <div className="text-xs text-slate-400">{sub.userId}</div>
+                      </td>
+                      <td className="hidden px-3 py-2 text-xs text-slate-400 sm:table-cell">—</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-400">미제출</span>
+                      </td>
+                      <td className="px-3 py-2 text-center text-slate-300 text-xs">—</td>
+                      <td className="hidden px-3 py-2 text-center text-slate-300 text-xs md:table-cell">—</td>
+                      <td className="hidden px-3 py-2 text-center text-slate-300 text-xs lg:table-cell">—</td>
+                      <td className="px-3 py-2 text-center text-slate-300 text-xs">—</td>
+                    </tr>
+                  );
+                }
 
                 return (
                   <React.Fragment key={sub.id}>
@@ -2792,7 +2896,7 @@ const SubmissionDashboard = ({
           })()}
           </tbody>
         </table>
-        <Pagination currentPage={subPage} totalPages={Math.ceil(submissions.length/SUB_PAGE_SIZE)} onPageChange={setSubPage} />
+        <Pagination currentPage={subPage} totalPages={Math.ceil(mergedRows.length/SUB_PAGE_SIZE)} onPageChange={setSubPage} />
       </div>
     </div>
   );
