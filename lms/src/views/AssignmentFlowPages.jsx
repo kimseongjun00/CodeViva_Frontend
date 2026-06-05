@@ -600,6 +600,7 @@ export const StudentAssignmentSubmitPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const editorViewRef = useRef(null);
+  const submitPagePollingRef = useRef(null);
 
   useEffect(() => {
     if (!assignmentId) return;
@@ -620,6 +621,22 @@ export const StudentAssignmentSubmitPage = () => {
       .catch(() => setError('과제 정보를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [assignmentId]);
+
+  // 질문 생성 중 / 인터뷰 대기 상태일 때 10초마다 상태 갱신
+  useEffect(() => {
+    clearInterval(submitPagePollingRef.current);
+    if (!assignmentId) return;
+    const needsPoll = existingStatus === 'QUESTION_GENERATING' || existingStatus === 'AWAITING_AUDIO_ANSWERS' || existingStatus === 'SUBMITTED';
+    if (!needsPoll) return;
+    submitPagePollingRef.current = setInterval(async () => {
+      const subs = await getMySubmissions().catch(() => []);
+      const found = subs.find((s) => String(s.assignmentId) === String(assignmentId));
+      if (found) setExistingStatus(found.aiValidationStatus);
+      const stillPending = found?.aiValidationStatus === 'QUESTION_GENERATING' || found?.aiValidationStatus === 'AWAITING_AUDIO_ANSWERS' || found?.aiValidationStatus === 'SUBMITTED';
+      if (!stillPending) clearInterval(submitPagePollingRef.current);
+    }, 10000);
+    return () => clearInterval(submitPagePollingRef.current);
+  }, [assignmentId, existingStatus]);
 
   const handleDownloadAttachment = () => {
     if (assignment?.attachmentDownloadUrl) window.open(assignment.attachmentDownloadUrl, '_blank');
@@ -686,7 +703,8 @@ export const StudentAssignmentSubmitPage = () => {
 
   if (isSubmitted) {
     const STATUS_CFG = {
-      QUESTION_GENERATING:        { badge: '질문 생성 중',   badgeCls: 'bg-amber-100 text-amber-700',   desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 확인하세요.' },
+      SUBMITTED:                  { badge: '질문 생성 대기', badgeCls: 'bg-amber-100 text-amber-700',   desc: 'AI 인터뷰 질문 생성을 기다리는 중입니다.', spinner: true },
+      QUESTION_GENERATING:        { badge: '질문 생성 중',   badgeCls: 'bg-amber-100 text-amber-700',   desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 자동으로 업데이트됩니다.', spinner: true },
       QUESTION_GENERATION_FAILED: { badge: '인터뷰 필요',    badgeCls: 'bg-red-100 text-red-600',        desc: '질문 생성에 실패했습니다. 아래 버튼으로 인터뷰를 재시도해주세요.' },
       AWAITING_AUDIO_ANSWERS:     { badge: '인터뷰 필요',    badgeCls: 'bg-blue-100 text-blue-700',      desc: 'AI 음성 인터뷰를 완료해주세요.' },
       READY_FOR_EVALUATION:       { badge: '제출완료',       badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: '인터뷰가 완료되었습니다. 교수님이 평가합니다.' },
@@ -721,7 +739,15 @@ export const StudentAssignmentSubmitPage = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-700">제출 상태</span>
-                  <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${cfg.badgeCls}`}>{cfg.badge}</span>
+                  <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold ${cfg.badgeCls}`}>
+                    {cfg.spinner && (
+                      <svg className="h-2.5 w-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    )}
+                    {cfg.badge}
+                  </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-400">{cfg.desc}</p>
               </div>
