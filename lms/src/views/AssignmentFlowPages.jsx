@@ -768,12 +768,12 @@ export const StudentAssignmentSubmitPage = () => {
           </div>
         </div>
 
-        <div className="flex flex-col rounded border border-[#d3d3d3] bg-white p-4">
-          {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
+        <div className="flex flex-col rounded border border-[#d3d3d3] bg-white p-4" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+          {error && <p className="mb-3 shrink-0 text-xs text-red-500">{error}</p>}
 
           {/* 과제 정보 */}
           {assignment && (
-            <div className="space-y-3">
+            <div className="shrink-0 space-y-3">
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-700">과제명</label>
                 <div className="rounded border border-slate-200 bg-[#f3f3f3] px-3 py-2 text-xs font-bold text-[#1a6d7e]">
@@ -800,7 +800,7 @@ export const StudentAssignmentSubmitPage = () => {
               {assignment.description && (
                 <div className="rounded border border-teal-100 bg-teal-50/50 p-4">
                   <h3 className="mb-2 text-xs font-bold text-teal-800"> 출제 과제 상세 내용</h3>
-                  <div className="whitespace-pre-line text-xs leading-relaxed text-slate-700">
+                  <div className="max-h-28 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-slate-700">
                     {assignment.description}
                   </div>
                   {assignment.attachmentOriginalName && (
@@ -817,11 +817,11 @@ export const StudentAssignmentSubmitPage = () => {
           )}
 
           {/* 코드 입력 */}
-          <div className="mt-4">
-            <label className="mb-1.5 block text-xs font-bold text-slate-700">
+          <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <label className="mb-1.5 shrink-0 block text-xs font-bold text-slate-700">
               제출 코드 <span className="text-red-500">*</span>
             </label>
-            <div className="flex h-72 flex-col overflow-hidden rounded border border-slate-700 bg-slate-900">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-slate-700 bg-slate-900">
               <div className="flex shrink-0 items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1.5">
@@ -856,7 +856,7 @@ export const StudentAssignmentSubmitPage = () => {
           </div>
 
           {/* 버튼 */}
-          <div className="mt-5 flex items-center justify-end gap-2 border-t border-[#dfdfdf] pt-4">
+          <div className="mt-5 shrink-0 flex items-center justify-end gap-2 border-t border-[#dfdfdf] pt-4">
             <Link
               to="/student/assignment-list"
               className="rounded-sm border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
@@ -2110,7 +2110,7 @@ export const StudentAssignmentVerifyPage = () => {
 
               {/* 분석 데이터 — 스크롤 가능 */}
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-                <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {/* 보안 이벤트 기록 */}
                   {(() => {
                     const timeouts = securityLogRef.current.filter((e) => e.type === 'answer_timeout').length;
