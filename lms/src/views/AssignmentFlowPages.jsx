@@ -1564,13 +1564,106 @@ export const StudentAssignmentVerifyPage = () => {
 
   if (loadingQuestions) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900">
-        <svg className="mb-4 h-10 w-10 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-        <p className="text-base font-bold text-white">AI가 질문을 생성하고 있습니다</p>
-        <p className="mt-1 text-sm text-slate-400">제출한 코드를 분석 중입니다. 잠시만 기다려주세요...</p>
+      <div className="min-h-screen bg-slate-900 flex flex-col">
+        {/* 헤더 */}
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-bold tracking-tight text-white">AI 검증 인터뷰</h2>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+              질문 생성 중
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500">잠시만 기다려주세요</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
+
+            {/* 상태 카드 */}
+            <div className="rounded-2xl bg-slate-800 px-8 py-8 text-center">
+              <div className="mb-5 flex justify-center">
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <svg className="absolute h-16 w-16 animate-spin text-teal-500/20" fill="none" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                  <svg className="absolute h-16 w-16 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24" style={{ animationDuration: '1.2s' }}>
+                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-2xl">🤖</span>
+                </div>
+              </div>
+              <h3 className="mb-2 text-xl font-bold text-white">AI가 맞춤형 질문을 생성하고 있습니다</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                제출한 코드를 분석하여 이해도를 검증할 질문을 만들고 있습니다.<br />
+                이 시간을 활용해 아래 인터뷰 안내를 읽어두세요.
+              </p>
+            </div>
+
+            {/* 인터뷰 진행 방식 */}
+            <div className="rounded-2xl bg-slate-800 px-6 py-5">
+              <h4 className="mb-4 text-sm font-bold text-white">인터뷰 진행 방식</h4>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { step: '1', icon: '🎙', title: '마이크 테스트', desc: '환경 점검 및\n배경 소음 확인' },
+                  { step: '2', icon: '❓', title: 'AI 질문 3문항', desc: '코드 이해도\n관련 질문' },
+                  { step: '3', icon: '🔊', title: '음성 답변', desc: '각 질문에\n음성으로 응답' },
+                ].map(({ step, icon, title, desc }) => (
+                  <div key={step} className="rounded-xl bg-slate-700/60 px-4 py-4 text-center">
+                    <div className="mb-2 flex h-8 w-8 mx-auto items-center justify-center rounded-full bg-teal-500/20 text-lg font-bold text-teal-400">{step}</div>
+                    <div className="mb-1 text-lg">{icon}</div>
+                    <div className="text-xs font-bold text-white">{title}</div>
+                    <div className="mt-1 text-[11px] text-slate-400 whitespace-pre-line">{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 보안 / 부정행위 안내 */}
+            <div className="rounded-2xl border border-red-800/40 bg-red-950/30 px-6 py-5">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-base">🚨</span>
+                <h4 className="text-sm font-bold text-red-300">부정행위 감지 시스템 안내</h4>
+              </div>
+              <ul className="space-y-2.5 text-xs text-red-200/80">
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-red-400">✕</span>
+                  <span><strong className="text-red-300">질문을 소리 내어 읽지 마세요.</strong> 녹음된 음성에서 질문 내용이 감지되면 AI 도구 활용으로 간주됩니다.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-red-400">✕</span>
+                  <span>인터뷰 중 <strong className="text-red-300">탭 전환, 창 최소화, 전체화면 해제</strong>는 모두 기록됩니다.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-red-400">✕</span>
+                  <span>답변이 제출한 코드와 무관하거나 지나치게 정형화된 경우 <strong className="text-red-300">의심 사례</strong>로 분류됩니다.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-red-400">✕</span>
+                  <span>답변 지연, 읽는 말투, 비자연스러운 발화 등 <strong className="text-red-300">모든 이상 패턴을 AI가 자동 분석</strong>합니다.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0 font-bold text-red-400">✕</span>
+                  <span>마이크 음소거, 개발자 도구 열기, 커서 화면 이탈(듀얼 모니터 의심)도 기록됩니다.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* 팁 */}
+            <div className="rounded-2xl bg-teal-900/30 border border-teal-700/30 px-6 py-4">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-base">💡</span>
+                <h4 className="text-sm font-bold text-teal-300">답변 준비 팁</h4>
+              </div>
+              <ul className="space-y-1.5 text-xs text-teal-200/70">
+                <li>• 제출한 코드의 핵심 로직, 변수명, 알고리즘 흐름을 떠올려두세요.</li>
+                <li>• 조용한 환경에서 명확하게 말하면 인식률이 높아집니다.</li>
+                <li>• 각 질문에 대한 답변 시간은 최대 3분입니다. 충분히 설명하세요.</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
       </div>
     );
   }
