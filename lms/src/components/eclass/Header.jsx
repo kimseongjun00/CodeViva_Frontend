@@ -35,7 +35,7 @@ const Header = ({ messageCount, checkCount, bellCount }) => {
               {user?.name ?? ''}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-500">
+          <div className="flex items-center gap-3 text-sm text-gray-500">
             <button className="relative" aria-label="쪽지">
               ✉️
               <span className="absolute -top-1 -right-2 rounded-full bg-[#1a6d7e] px-1 text-[10px] text-white">{messageCount}</span>
