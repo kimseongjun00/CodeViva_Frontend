@@ -1477,7 +1477,7 @@ export const StudentAssignmentVerifyPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center py-6 px-6" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
+    <div className="h-screen overflow-hidden bg-white flex items-center justify-center px-4" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}>
       {/* 인쇄/PDF 차단 + 스크린샷 시 흐려지는 효과 */}
       <style>{`
         @media print { body { display: none !important; } }
@@ -1545,7 +1545,7 @@ export const StudentAssignmentVerifyPage = () => {
         </div>
       )}
 
-      <div className="flex w-full max-w-[1100px] h-[1000px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5 relative">
+      <div className="flex w-full max-w-[1100px] h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5 relative">
         {/* 헤더 */}
         <div className="z-10 shrink-0 flex items-center justify-between bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -1621,62 +1621,62 @@ export const StudentAssignmentVerifyPage = () => {
         <div className="relative flex min-h-0 flex-1 flex-col p-6">
           {/* 마이크 테스트 */}
           {phase === 'voice-test' && (
-            <div className="m-auto w-full max-w-2xl rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+            <div className="m-auto w-full max-w-2xl rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
               {/* 타이틀 + 타이머 */}
-              <div className="mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-teal-100 bg-teal-50">
-                    <span className="text-xl">🎙</span>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-teal-100 bg-teal-50">
+                    <span className="text-lg">🎙</span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800">마이크 및 환경 테스트</h3>
-                    <p className="text-sm text-slate-500">AI가 질문을 준비하는 동안 마이크를 테스트하세요.</p>
+                    <h3 className="text-base font-bold text-slate-800">마이크 및 환경 테스트</h3>
+                    <p className="text-xs text-slate-500">AI가 질문을 준비하는 동안 마이크를 테스트하세요.</p>
                   </div>
                 </div>
                 {/* 타이머 원형 */}
                 <div className="flex flex-col items-center">
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-teal-100 bg-teal-50">
-                    <span className="text-xl font-bold tabular-nums text-teal-600">{micTestTimer}</span>
+                  <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-teal-100 bg-teal-50">
+                    <span className="text-base font-bold tabular-nums text-teal-600">{micTestTimer}</span>
                   </div>
-                  <span className="mt-1 text-xs text-slate-400">초 남음</span>
+                  <span className="mt-0.5 text-xs text-slate-400">초 남음</span>
                 </div>
               </div>
 
               {/* AI 준비 중 안내 */}
-              <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-                <span className="animate-pulse text-amber-500 text-lg">⚙️</span>
-                <p className="text-sm text-amber-700">AI가 제출한 코드를 분석하여 질문을 생성하고 있습니다...</p>
+              <div className="mb-2 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2">
+                <span className="animate-pulse text-amber-500 text-base">⚙️</span>
+                <p className="text-xs text-amber-700">AI가 제출한 코드를 분석하여 질문을 생성하고 있습니다...</p>
               </div>
 
               {/* 부정행위 경고 */}
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-base">🚨</span>
-                  <span className="text-sm font-bold text-red-700">인터뷰 부정행위 안내</span>
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="text-sm">🚨</span>
+                  <span className="text-xs font-bold text-red-700">인터뷰 부정행위 안내</span>
                 </div>
-                <ul className="space-y-1.5 text-xs text-red-600">
+                <ul className="space-y-1 text-xs text-red-600">
                   <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
+                    <span className="shrink-0 font-bold">✕</span>
                     <span><strong>질문을 소리 내어 읽지 마세요.</strong> 녹음된 음성에서 질문 내용이 감지되면 AI 도구 활용으로 간주됩니다.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
+                    <span className="shrink-0 font-bold">✕</span>
                     <span>답변 내용이 제출한 코드와 무관하거나 지나치게 정형화된 경우 의심 사례로 분류됩니다.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="mt-0.5 shrink-0 font-bold">✕</span>
+                    <span className="shrink-0 font-bold">✕</span>
                     <span>모든 이상 패턴(답변 지연, 읽는 말투, 비자연스러운 발화 등)은 AI가 자동으로 분석합니다.</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-400">테스트 멘트</div>
+              <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">테스트 멘트</div>
                   <div className="text-sm font-medium text-slate-700">"테스트 멘트를 읽어주세요"</div>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                  <div className="mb-2 text-xs font-semibold uppercase text-slate-400">연결 상태</div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-1 text-xs font-semibold uppercase text-slate-400">연결 상태</div>
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${micState === 'ready' ? 'bg-green-500' : micState === 'blocked' ? 'bg-red-500' : 'animate-pulse bg-yellow-400'}`} />
                     <span className="text-sm font-medium text-slate-700">
@@ -1688,8 +1688,8 @@ export const StudentAssignmentVerifyPage = () => {
                 </div>
               </div>
 
-              <div className="relative mb-6 flex h-28 items-end justify-center overflow-hidden rounded-xl bg-slate-900 p-5">
-                <div className="z-10 flex h-16 w-full items-end justify-center gap-1">
+              <div className="relative mb-3 flex h-16 items-end justify-center overflow-hidden rounded-xl bg-slate-900 p-3">
+                <div className="z-10 flex h-10 w-full items-end justify-center gap-1">
                   {waveformBars.map((bar, i) => (
                     <span
                       key={bar}
