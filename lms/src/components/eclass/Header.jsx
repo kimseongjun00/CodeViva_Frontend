@@ -26,7 +26,7 @@ const Header = ({ messageCount, checkCount, bellCount }) => {
             <img src="/hufs_logo.png" alt="한국외국어대학교 로고" className="h-[100px] w-[100px] -mt-5 object-contain p-1.5" />
           </div>
           <h1 className="mt-2 text-[25px] leading-tight font-black tracking-[0.15em] text-[#3a9eb5]">한국외국어대학교</h1>
-          <p className="-mt-2 text-[19px] font-bold tracking-[0.02em] text-[#3a9eb5]">e-Class (LMS/TMS)</p>
+          <p className="mt-1 text-[19px] font-bold tracking-[0.02em] text-[#3a9eb5]">e-Class (LMS/TMS)</p>
         </div>
 
         <div className="mb-2 flex items-center gap-2 font-['Dotum','Apple_SD_Gothic_Neo',sans-serif] text-[11px]">

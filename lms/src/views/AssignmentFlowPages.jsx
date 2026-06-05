@@ -17,7 +17,7 @@ import {
   deleteAssignment,
   evaluateAssignment,
 } from '../api/assignments';
-import { createSubmission, getSubmissionsByAssignment, getSubmission, evaluateSubmission } from '../api/submissions';
+import { createSubmission, getSubmissionsByAssignment, getSubmission, getMySubmissions, evaluateSubmission } from '../api/submissions';
 import { saveBatchAnswers, getAnswersBySubmission } from '../api/submissionAnswers';
 import Header from '../components/eclass/Header';
 import GlobalNav from '../components/eclass/GlobalNav';
@@ -580,6 +580,9 @@ export const StudentAssignmentSubmitPage = () => {
 
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [existingCode, setExistingCode] = useState(null);
+  const [existingSubmissionId, setExistingSubmissionId] = useState(null);
+  const [existingStatus, setExistingStatus] = useState(null);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
   const [submitting, setSubmitting] = useState(false);
@@ -588,8 +591,20 @@ export const StudentAssignmentSubmitPage = () => {
 
   useEffect(() => {
     if (!assignmentId) return;
-    getAssignment(assignmentId)
-      .then(setAssignment)
+    Promise.all([
+      getAssignment(assignmentId),
+      getMySubmissions().catch(() => []),
+    ])
+      .then(async ([a, subs]) => {
+        setAssignment(a);
+        const existing = subs.find((s) => String(s.assignmentId) === String(assignmentId));
+        if (existing) {
+          const full = await getSubmission(existing.id).catch(() => null);
+          setExistingCode(full?.code ?? '');
+          setExistingSubmissionId(existing.id);
+          setExistingStatus(full?.aiValidationStatus ?? existing.aiValidationStatus ?? null);
+        }
+      })
       .catch(() => setError('과제 정보를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [assignmentId]);
@@ -651,6 +666,90 @@ export const StudentAssignmentSubmitPage = () => {
     return (
       <EclassPageFrame role="student">
         <div className="py-12 text-center text-sm text-gray-400">불러오는 중...</div>
+      </EclassPageFrame>
+    );
+  }
+
+  const isSubmitted = existingCode !== null;
+
+  if (isSubmitted) {
+    const STATUS_CFG = {
+      QUESTION_GENERATING:        { badge: '질문 생성 중',   badgeCls: 'bg-amber-100 text-amber-700',   desc: 'AI가 인터뷰 질문을 생성하고 있습니다. 잠시 후 확인하세요.' },
+      QUESTION_GENERATION_FAILED: { badge: '인터뷰 필요',    badgeCls: 'bg-red-100 text-red-600',        desc: '질문 생성에 실패했습니다. 아래 버튼으로 인터뷰를 재시도해주세요.' },
+      AWAITING_AUDIO_ANSWERS:     { badge: '인터뷰 필요',    badgeCls: 'bg-blue-100 text-blue-700',      desc: 'AI 음성 인터뷰를 완료해주세요.' },
+      READY_FOR_EVALUATION:       { badge: '제출완료',       badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: '인터뷰가 완료되었습니다. 교수님이 평가합니다.' },
+      AWAITING_EVALUATION:        { badge: '제출완료',       badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: '인터뷰가 완료되었습니다. 교수님이 평가합니다.' },
+      EVALUATING:                 { badge: '평가 중',        badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: 'AI 평가가 진행 중입니다.' },
+      EVALUATED:                  { badge: '평가완료',       badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: '제출 및 평가가 모두 완료되었습니다.' },
+      EVALUATION_FAILED:          { badge: '제출완료',       badgeCls: 'bg-teal-100 text-[#1a6d7e]',    desc: '제출이 완료되었습니다.' },
+    };
+    const interviewStarted = existingSubmissionId && localStorage.getItem(`cv_interview_started_${existingSubmissionId}`);
+    const showInterviewBtn = !interviewStarted && (existingStatus === 'AWAITING_AUDIO_ANSWERS' || existingStatus === 'QUESTION_GENERATION_FAILED');
+    const cfg = (interviewStarted && existingStatus === 'AWAITING_AUDIO_ANSWERS')
+      ? { badge: '인터뷰 중단됨', badgeCls: 'bg-orange-100 text-orange-700', desc: 'AI 인터뷰 진행 중 비정상 종료되었습니다. 재응시는 불가합니다.' }
+      : STATUS_CFG[existingStatus] ?? { badge: '제출완료', badgeCls: 'bg-teal-100 text-[#1a6d7e]', desc: '제출된 코드는 수정할 수 없습니다.' };
+
+    return (
+      <EclassPageFrame role="student">
+        <div>
+          <div className="mb-4 flex items-end justify-between border-b border-[#dfdfdf] pb-2">
+            <h2 className="text-[26px] leading-none font-bold text-[#5a5a5a]">제출한 코드</h2>
+            <div className="flex items-center gap-1 text-sm text-gray-500">
+              <span className="rounded-sm bg-[#1a6d7e] px-1 text-[11px] text-white">H</span>
+              <span>›</span>
+              <Link to="/student/assignment-list" className="text-[#1a6d7e] hover:underline">과제</Link>
+              <span>›</span>
+              <span className="font-bold text-[#1a6d7e]">제출 내역</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col rounded border border-[#d3d3d3] bg-white p-4">
+            {/* 상태 + 버튼 */}
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700">제출 상태</span>
+                  <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${cfg.badgeCls}`}>{cfg.badge}</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400">{cfg.desc}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {showInterviewBtn && existingSubmissionId && (
+                  <button
+                    onClick={() => navigate(`/student/assignment-verify?submissionId=${existingSubmissionId}`)}
+                    className={`rounded-sm px-4 py-1.5 text-xs font-semibold text-white ${existingStatus === 'QUESTION_GENERATION_FAILED' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {existingStatus === 'QUESTION_GENERATION_FAILED' ? 'AI 인터뷰 재시도' : 'AI 인터뷰 하기'}
+                  </button>
+                )}
+                <Link
+                  to="/student/assignment-list"
+                  className="rounded-sm border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  목록으로
+                </Link>
+              </div>
+            </div>
+
+            {/* 읽기 전용 코드 에디터 */}
+            <div className="flex h-[500px] flex-col overflow-hidden rounded border border-slate-700 bg-slate-900">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-700 bg-slate-800 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
+                  </div>
+                  <span className="ml-1 font-mono text-xs text-slate-400">solution</span>
+                </div>
+                <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">read only</span>
+              </div>
+              <pre className="flex-1 overflow-auto bg-[#0d1117] p-5 font-mono text-sm leading-relaxed text-slate-300 whitespace-pre">
+                {existingCode || '// 코드 내용 없음'}
+              </pre>
+            </div>
+          </div>
+        </div>
       </EclassPageFrame>
     );
   }
@@ -1888,114 +1987,125 @@ export const StudentAssignmentVerifyPage = () => {
 
           {/* 완료 */}
           {phase === 'done' && (
-            <div className="m-auto flex max-w-md flex-col items-center justify-center rounded-3xl border border-slate-100 bg-white p-10 text-center shadow-xl">
-              <div className={`mb-6 flex h-20 w-20 items-center justify-center rounded-full ${submitError ? 'bg-red-50' : 'bg-teal-50'}`}>
-                {submitError ? (
-                  <svg className="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                  </svg>
-                ) : (
-                  <span className="text-4xl"></span>
-                )}
-              </div>
-              <h3 className="mb-2 text-2xl font-bold text-slate-800">{submitError ? '제출 오류' : '검증이 완료되었습니다'}</h3>
-              <p className="mb-4 leading-relaxed text-slate-500">
-                {submitError ? submitError : '수고하셨습니다. 모든 답변이 정상적으로 서버에 기록되었습니다.'}
-              </p>
-              {/* 보안 로그 요약 */}
-              {(() => {
-                const timeouts = securityLogRef.current.filter((e) => e.type === 'answer_timeout').length;
-                const hasEvents = tabSwitchCount > 0 || devToolsCount > 0 || windowBlurCount > 0 || cursorOutCount > 0 || timeouts > 0 || micMuteCount > 0 || fullscreenExitCount > 0;
-                return hasEvents ? (
-                  <div className="mb-5 w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-left text-xs text-red-700">
-                    <div className="mb-2 font-bold text-red-800">보안 이벤트 기록</div>
-                    <div className="space-y-1">
-                      {fullscreenExitCount > 0 && <div className="flex justify-between"><span>전체화면 해제</span><span className="font-bold">{fullscreenExitCount}회</span></div>}
-                      {tabSwitchCount > 0 && <div className="flex justify-between"><span>탭 전환</span><span className="font-bold">{tabSwitchCount}회</span></div>}
-                      {windowBlurCount > 0 && <div className="flex justify-between"><span>창 포커스 이탈 (앱 전환)</span><span className="font-bold">{windowBlurCount}회</span></div>}
-                      {cursorOutCount > 0 && <div className="flex justify-between"><span>커서 화면 이탈 (듀얼모니터 의심)</span><span className="font-bold">{cursorOutCount}회</span></div>}
-                      {micMuteCount > 0 && <div className="flex justify-between"><span>마이크 음소거</span><span className="font-bold">{micMuteCount}회</span></div>}
-                      {devToolsCount > 0 && <div className="flex justify-between"><span>개발자 도구 감지</span><span className="font-bold">{devToolsCount}회</span></div>}
-                      {timeouts > 0 && <div className="flex justify-between"><span>시간 초과 자동 종료</span><span className="font-bold">{timeouts}회</span></div>}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-              {/* 무음 구간 분석 */}
-              {Object.keys(silenceMetricsRef.current).length > 0 && (
-                <div className="mb-5 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
-                  <div className="mb-2 font-bold text-slate-700">무음 구간 분석</div>
-                  {Object.entries(silenceMetricsRef.current).map(([qi, m]) => (
-                    <div key={qi} className="mb-2">
-                      <div className="mb-1 font-semibold text-slate-500">Q{Number(qi) + 1}</div>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2">
-                        <span>첫 발화까지</span>
-                        <span className={`font-mono font-bold ${m.initialSilence > 10 ? 'text-red-500' : 'text-slate-700'}`}>
-                          {m.initialSilence ?? 0}초
-                        </span>
-                        <span>최대 연속 무음</span>
-                        <span className={`font-mono font-bold ${m.maxSilence >= 10 ? 'text-red-500' : m.maxSilence >= 5 ? 'text-amber-500' : 'text-slate-700'}`}>
-                          {m.maxSilence}초
-                        </span>
-                        <span>총 무음 시간</span>
-                        <span className="font-mono font-bold text-slate-700">{m.totalSilence}초</span>
-                        <span>무음 구간 횟수 (3초↑)</span>
-                        <span className={`font-mono font-bold ${m.count >= 3 ? 'text-red-500' : 'text-slate-700'}`}>
-                          {m.count}회
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* 상단 요약 */}
+              <div className={`shrink-0 flex items-center gap-4 px-6 py-5 ${submitError ? 'bg-red-50 border-b border-red-100' : 'bg-teal-50 border-b border-teal-100'}`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${submitError ? 'bg-red-100' : 'bg-teal-100'}`}>
+                  {submitError ? (
+                    <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  ) : (
+                    <span className="text-2xl">✅</span>
+                  )}
                 </div>
-              )}
+                <div className="min-w-0 flex-1">
+                  <h3 className={`text-lg font-bold ${submitError ? 'text-red-800' : 'text-teal-800'}`}>
+                    {submitError ? '제출 오류' : '검증이 완료되었습니다'}
+                  </h3>
+                  <p className={`text-sm ${submitError ? 'text-red-600' : 'text-teal-700'}`}>
+                    {submitError ? submitError : '수고하셨습니다. 모든 답변이 정상적으로 서버에 기록되었습니다.'}
+                  </p>
+                </div>
+                <Link
+                  to="/student/assignment-list"
+                  className="shrink-0 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-95"
+                >
+                  과제 목록으로
+                </Link>
+              </div>
 
-              {/* 커서 존 분석 */}
-              {cursorZoneLogRef.current.length > 0 && (() => {
-                const byQ = {};
-                cursorZoneLogRef.current.forEach(({ zone, questionIndex: qi, duration }) => {
-                  if (!byQ[qi]) byQ[qi] = { question: 0, code: 0 };
-                  byQ[qi][zone] = (byQ[qi][zone] || 0) + duration;
-                });
-                return (
-                  <div className="mb-5 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
-                    <div className="mb-2 font-bold text-slate-700">커서 체류 분석</div>
-                    {Object.entries(byQ).map(([qi, times]) => (
-                      <div key={qi} className="mb-1.5">
-                        <div className="mb-0.5 font-semibold text-slate-500">Q{Number(qi) + 1}</div>
-                        <div className="flex gap-4 pl-2">
-                          <span>질문 열람 <strong className={times.question < 5 ? 'text-red-500' : 'text-teal-600'}>{times.question ?? 0}초</strong></span>
-                          <span>코드 확인 <strong className="text-slate-700">{times.code ?? 0}초</strong></span>
+              {/* 분석 데이터 — 스크롤 가능 */}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-2">
+                  {/* 보안 이벤트 기록 */}
+                  {(() => {
+                    const timeouts = securityLogRef.current.filter((e) => e.type === 'answer_timeout').length;
+                    const hasEvents = tabSwitchCount > 0 || devToolsCount > 0 || windowBlurCount > 0 || cursorOutCount > 0 || timeouts > 0 || micMuteCount > 0 || fullscreenExitCount > 0;
+                    return hasEvents ? (
+                      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
+                        <div className="mb-2 font-bold text-red-800">🚨 보안 이벤트 기록</div>
+                        <div className="space-y-1">
+                          {fullscreenExitCount > 0 && <div className="flex justify-between"><span>전체화면 해제</span><span className="font-bold">{fullscreenExitCount}회</span></div>}
+                          {tabSwitchCount > 0 && <div className="flex justify-between"><span>탭 전환</span><span className="font-bold">{tabSwitchCount}회</span></div>}
+                          {windowBlurCount > 0 && <div className="flex justify-between"><span>창 포커스 이탈</span><span className="font-bold">{windowBlurCount}회</span></div>}
+                          {cursorOutCount > 0 && <div className="flex justify-between"><span>커서 화면 이탈</span><span className="font-bold">{cursorOutCount}회</span></div>}
+                          {micMuteCount > 0 && <div className="flex justify-between"><span>마이크 음소거</span><span className="font-bold">{micMuteCount}회</span></div>}
+                          {devToolsCount > 0 && <div className="flex justify-between"><span>개발자 도구 감지</span><span className="font-bold">{devToolsCount}회</span></div>}
+                          {timeouts > 0 && <div className="flex justify-between"><span>시간 초과 자동 종료</span><span className="font-bold">{timeouts}회</span></div>}
                         </div>
                       </div>
-                    ))}
-                    <p className="mt-2 text-[10px] text-slate-400">질문 열람 시간이 5초 미만이면 빨간색으로 표시됩니다.</p>
-                  </div>
-                );
-              })()}
-
-              {/* 질문별 소요 시간 */}
-              {Object.keys(questionTimesRef.current).length > 0 && (
-                <div className="mb-5 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
-                  <div className="mb-2 font-bold text-slate-700">질문별 답변 시간</div>
-                  {Object.entries(questionTimesRef.current).map(([idx, sec]) => {
-                    const isTimeout = sec >= MAX_ANSWER_SECONDS;
-                    return (
-                      <div key={idx} className="flex justify-between py-0.5">
-                        <span>Q{Number(idx) + 1}</span>
-                        <span className={`font-mono font-bold ${isTimeout ? 'text-red-500' : ''}`}>
-                          {fmtTime(sec)}{isTimeout ? ' (시간초과)' : ''}
-                        </span>
+                    ) : (
+                      <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-xs text-teal-700">
+                        <div className="mb-1 font-bold text-teal-800">✅ 보안 이벤트 없음</div>
+                        <p className="text-teal-600">이상 행동이 감지되지 않았습니다.</p>
                       </div>
                     );
-                  })}
+                  })()}
+
+                  {/* 질문별 답변 시간 */}
+                  {Object.keys(questionTimesRef.current).length > 0 && (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                      <div className="mb-2 font-bold text-slate-700">⏱ 질문별 답변 시간</div>
+                      {Object.entries(questionTimesRef.current).map(([idx, sec]) => {
+                        const isTimeout = sec >= MAX_ANSWER_SECONDS;
+                        return (
+                          <div key={idx} className="flex justify-between py-0.5">
+                            <span>Q{Number(idx) + 1}</span>
+                            <span className={`font-mono font-bold ${isTimeout ? 'text-red-500' : 'text-slate-700'}`}>
+                              {fmtTime(sec)}{isTimeout ? ' (시간초과)' : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 무음 구간 분석 */}
+                  {Object.keys(silenceMetricsRef.current).length > 0 && (
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                      <div className="mb-2 font-bold text-slate-700">🔇 무음 구간 분석</div>
+                      {Object.entries(silenceMetricsRef.current).map(([qi, m]) => (
+                        <div key={qi} className="mb-2 last:mb-0">
+                          <div className="mb-0.5 font-semibold text-slate-500">Q{Number(qi) + 1}</div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2">
+                            <span>첫 발화까지</span>
+                            <span className={`font-mono font-bold ${m.initialSilence > 10 ? 'text-red-500' : 'text-slate-700'}`}>{m.initialSilence ?? 0}초</span>
+                            <span>최대 연속 무음</span>
+                            <span className={`font-mono font-bold ${m.maxSilence >= 10 ? 'text-red-500' : m.maxSilence >= 5 ? 'text-amber-500' : 'text-slate-700'}`}>{m.maxSilence}초</span>
+                            <span>총 무음 / 횟수</span>
+                            <span className={`font-mono font-bold ${m.count >= 3 ? 'text-red-500' : 'text-slate-700'}`}>{m.totalSilence}초 / {m.count}회</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 커서 체류 분석 */}
+                  {cursorZoneLogRef.current.length > 0 && (() => {
+                    const byQ = {};
+                    cursorZoneLogRef.current.forEach(({ zone, questionIndex: qi, duration }) => {
+                      if (!byQ[qi]) byQ[qi] = { question: 0, code: 0 };
+                      byQ[qi][zone] = (byQ[qi][zone] || 0) + duration;
+                    });
+                    return (
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        <div className="mb-2 font-bold text-slate-700">🖱 커서 체류 분석</div>
+                        {Object.entries(byQ).map(([qi, times]) => (
+                          <div key={qi} className="mb-1.5 last:mb-0">
+                            <div className="mb-0.5 font-semibold text-slate-500">Q{Number(qi) + 1}</div>
+                            <div className="flex gap-4 pl-2">
+                              <span>질문 <strong className={times.question < 5 ? 'text-red-500' : 'text-teal-600'}>{times.question ?? 0}초</strong></span>
+                              <span>코드 <strong className="text-slate-700">{times.code ?? 0}초</strong></span>
+                            </div>
+                          </div>
+                        ))}
+                        <p className="mt-1.5 text-[10px] text-slate-400">질문 열람 5초 미만 → 빨간색</p>
+                      </div>
+                    );
+                  })()}
                 </div>
-              )}
-              <Link
-                to="/student/assignment-list"
-                className="block w-full rounded-xl bg-slate-900 py-3.5 text-center font-bold text-white shadow-md transition-all hover:bg-slate-800 active:scale-95"
-              >
-                과제 목록으로 돌아가기
-              </Link>
+              </div>
             </div>
           )}
         </div>
